@@ -1,0 +1,65 @@
+Meeting 1
+Date: 30th October 2025
+Meeting Type: Online (11:00am)
+
+Participants:
+
+Gauri Sachin Pethkar – Member
+Keshwith Pyla – Member
+Karolina Raczynska – Member
+Martha Ryan – Member / Notetaker
+Rohn Santiago – Member
+
+Summary of Meeting:
+
+-> Met online to begin the project and confirm everyone’s setup.
+-> Chose the group name BM25ers.
+-> All members joined the GitHub repository and verified access.
+-> Agreed that each member would find one SIGIR research paper before the next meeting to support our project understanding.
+
+Contributions to Implementation:
+
+All members: joined the repository and ensured the Maven build worked locally.
+
+Contributions to Research Paper:
+
+Each member will find and read one SIGIR research paper before the next meeting and share key insights.
+
+-----------------------------------------------------------------------------------------------------------
+Meeting 2
+Date: 4th November 2025
+Meeting Type: In-Person (3:00pm, South Leinster Street SCSS Meeting Rooms)
+
+Participants:
+
+Gauri – Co-lead on Indexer.java / Maven configuration
+Keshwith – Lead on App.java / Branch setup
+Karolina – Co-lead on Indexer.java
+Martha Ryan – Co-lead on Searcher.java / Journal maintenance
+Rohn – Co-lead on Searcher.java
+
+
+Summary of Meeting:
+
+-> Distributed coding tasks for the first iteration:
+   - Searcher.java: Rohn and Martha
+   - Indexer.java: Karolina and Gauri
+   - App.java: Keshwith
+
+-> Gauri updated the pom.xml to Java version 21.
+-> Keshwith created a new branch for Iteration 1.
+-> Set the deadline for Tuesday, 11th November for a working search engine and first trials.
+-> Agreed that each member will find and read two SIGIR research papers by the next meeting.
+-> Set up a LaTeX project for the research paper, where all findings will be recorded.
+-> Martha will maintain and submit the project journal after each meeting.
+
+Contributions to Implementation:
+
+-> Rohn & Martha: began planning and implementing Searcher.java (query parsing, BM25 ranking).
+-> Karolina & Gauri: outlined the design for Indexer.java.
+-> Gauri: updated Maven configuration to Java 21.
+-> Keshwith: created and managed the Iteration 1 branch, set up base CLI structure in App.java.
+
+Contributions to Research Paper:
+
+All members: will each find and summarise two SIGIR research papers by next meeting. 
