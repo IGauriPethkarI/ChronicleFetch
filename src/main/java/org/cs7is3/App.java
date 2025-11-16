@@ -14,9 +14,15 @@ package org.cs7is3;
 // 4. Output format: "topic_id Q0 docno rank score run_tag"
 
 public class App {
+    public static String DATA_PATH = "data";
+    public static String INDEX_PATH = "index";
+
     public static void main(String[] args) {
-        // TODO: Implement your main method
-        // Parse command-line arguments and delegate to Indexer/Searcher
-        System.out.println("TODO: Implement your search engine application");
-    }
+        try {
+            System.out.println("Starting indexing...");
+            TrialIndexer.createIndex(DATA_PATH, INDEX_PATH);
+            System.out.println("Index created successfully at: " + INDEX_PATH);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }}
 }
