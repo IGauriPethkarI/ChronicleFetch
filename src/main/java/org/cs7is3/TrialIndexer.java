@@ -1,12 +1,12 @@
 package org.cs7is3;
 
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.FSDirectory;
 
+import org.cs7is3.analyzer.CustomAnalyzer;
 import org.cs7is3.parsers.*;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class TrialIndexer {
     private static final Pattern   DOC_PATTERN = Pattern.compile("(?is)<DOC>(.*?)</DOC>");
 
     public TrialIndexer(String indexDir) throws Exception {
-        IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
+        IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
         cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
         cfg.setRAMBufferSizeMB(256.0);
         cfg.setUseCompoundFile(false);
