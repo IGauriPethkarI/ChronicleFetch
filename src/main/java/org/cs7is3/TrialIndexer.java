@@ -21,10 +21,12 @@ public class TrialIndexer {
 
     private final IndexWriter writer;
     private int TotalDocuments = 0;
+    private final Set<Integer> seenHashes = new HashSet<>();
 
     private static final Pattern   DOC_PATTERN = Pattern.compile("(?is)<DOC>(.*?)</DOC>");
 
     public TrialIndexer(String indexDir) throws Exception {
+        // Analyzer
         IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
         cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
         cfg.setRAMBufferSizeMB(256.0);
@@ -91,6 +93,7 @@ public class TrialIndexer {
             if (parsed == null) continue;
 
             Document luceneDoc = normalize(parsed);
+            if (luceneDoc == null) continue;
             String text = luceneDoc.get("text");
 
             if (text == null || text.isBlank()) {
@@ -125,7 +128,7 @@ public class TrialIndexer {
         if (lower.contains("fbis")) return new FBISParser();
         if (lower.contains("fr94") || lower.contains("fr")) return new FRParsers();
         if (lower.contains("ft")) return new FTParser();
-        // fallback
+
         return new LATParser();
     }
 
@@ -139,12 +142,18 @@ public class TrialIndexer {
         String section = pick(raw, "SECTION", "CATEGORY", "F", "PAGE");
         String source = raw.getOrDefault("SOURCE", guessSourceFromRaw(raw));
 
+        int h = Objects.hash(headline == null ? "" : headline, text == null ? "" : text);
+        if (seenHashes.contains(h)) return null;
+        seenHashes.add(h);
+
         doc.add(new StringField("docno", safe(docno), Field.Store.YES));
         doc.add(new StringField("source", safe(source), Field.Store.YES));
         doc.add(new TextField("text", safe(text), Field.Store.YES));
         doc.add(new TextField("headline", safe(headline), Field.Store.YES));
-        doc.add(new StringField("date", safe(date), Field.Store.YES));
+        doc.add(new StoredField("headline_raw", safe(headline)));
+        doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
+
 
         Set<String> exclude = new HashSet<>(Arrays.asList(
                 "DOCNO","DOCID","ID","TEXT","BODY","CONTENT","HEADLINE","TI","TITLE",
@@ -163,8 +172,29 @@ public class TrialIndexer {
         String metadata = metaBuilder.toString().trim();
         doc.add(new StoredField("metadata", metadata));
 
+        String meta = buildRawMetadata(raw);
+        if (meta.length() > 35000)
+            meta = meta.substring(0, 35000);
+        doc.add(new TextField("metadata_raw", String.join(" ",meta), Field.Store.YES));
+
         return doc;
     }
+
+    private String normalizeDate(String input) {
+        if (input == null) return "";
+        String digits = input.replaceAll("[^0-9]", "");
+        if (digits.length() >= 8) return digits.substring(0, 8);
+        return digits;
+    }
+
+    private String buildRawMetadata(Map<String,String> raw) {
+        StringBuilder sb = new StringBuilder();
+        raw.forEach((k,v)-> {
+            sb.append(k).append(": ").append(v).append("\n");
+        });
+        return sb.toString();
+    }
+
 
     private String pick(Map<String, String> m, String... keys) {
         for (String k : keys) {
