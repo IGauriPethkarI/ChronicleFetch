@@ -1,7 +1,6 @@
 package org.cs7is3;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -10,6 +9,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.cs7is3.analyzer.CustomAnalyzer;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -40,7 +40,7 @@ public class Searcher {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setSimilarity(new BM25Similarity(1.2f, 0.75f));
 
-            Analyzer analyzer = new EnglishAnalyzer();
+            Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline"};
             Map<String, Float> boosts = new HashMap<>();
             boosts.put("headline", 2.0f);
