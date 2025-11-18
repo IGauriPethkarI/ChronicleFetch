@@ -63,3 +63,68 @@ Contributions to Implementation:
 Contributions to Research Paper:
 
 All members: will each find and summarise two SIGIR research papers by next meeting. 
+
+
+Meeting 3
+Date: 11th November 2025
+Meeting Type: Hybrid (3:00pm) — all members present either in-person in South Leinster Street Lab or online
+
+Participants & Roles:
+
+-> Gauri & Karolina – worked on a trial Indexer using a custom analyzer; Gauri wrote parser files for each data format and experimented with the EnglishAnalyzer.
+-> Martha & Rohn – working on the barebones Searcher that parses topics, builds weighted queries, and outputs 1000 results per topic in TREC format.
+-> Keshwith – continued developing App.java.
+
+Research Contributions Since Last Meeting:
+
+-> Martha: researching BoostQuery Lucene wrapper techniques.
+-> Rohn: read a paper on Thematic Learning-based Full-text Retrieval (British & American Journalistic Reading).
+-> Gauri & Karolina: researching synonym variations for indexing.
+-> Keshwith: researching custom analyzers.
+
+Summary of Meeting:
+
+-> Everyone gave progress updates.
+-> Each member briefly summarised the research paper they read.
+-> Planned next steps and to-do's for Meeting on 18/11.
+
+Plan Before 18/11: 
+-> Indexing (Karolina & Gauri):
+   - Improve stopwords (news-specific).
+   - Build synonym list.
+   - Explore improved indexing methods.
+
+-> Searcher (Martha & Rohn):
+   - Main: query expansion → synonyms (from Karolina+Gauri + our own), related terms, variations.
+   - Test query strategies: title only, title+desc, title+desc+pos narrative.
+   - Tune field boosts/weights.
+   - Try BM25 default config.
+   - Try searching by author & publication date.
+
+-> Martha:
+   - Update project-journal.txt with Meeting 3.
+
+-> Keshwith:
+   - Upload App.java. 
+   - Test different analyzers.
+
+
+Meeting 4
+Date: 18th November 2025
+Meeting Type: Hybrid (1:00pm) — all members present
+
+Progress Updates:
+
+-> Karolina: Improved the indexer by adding duplicate detection (case-insensitive + prefix matching), extended field extraction for FR94 & FBIS, added statistics tracking, 
+periodic commits for memory management, and optimised the CustomAnalyzer. Indexed 518K docs, caught 10K duplicates, 0 empty docs.
+
+-> Martha: Built weighted queries using title + description + cleaned narrative; added field boosts (headline > text) via MultiFieldQueryParser.
+
+-> Gauri: Improved the custom analyzer.
+
+-> Rohn: Continued researching query expansion techniques.
+
+-> Keshwith: Updated App.java and is now transitioning to help the indexing team with analyzers.
+
+-> Everyone:
+Check material from today’s lecture (topic models, query likelihood, smoothing).
