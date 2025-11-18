@@ -78,7 +78,7 @@ jobs:
           import random
           import re
           from pathlib import Path
-
+          
           def parse_run_file(run_path):
               """Parse a TREC run file to extract retrieved documents per topic"""
               topic_docs = {}
@@ -98,7 +98,7 @@ jobs:
           def create_realistic_qrels(topic_docs, out_qrels, relevance_rate=0.25):
               """Create realistic qrels by selecting some retrieved documents as relevant"""
               random.seed(42)  # Fixed seed for reproducibility
-              
+          
               with open(out_qrels, "w", encoding="utf-8") as f:
                   for qid, docs in topic_docs.items():
                       # Select a subset of retrieved documents as relevant
@@ -112,11 +112,11 @@ jobs:
                           prob = relevance_rate * (1.0 - (i / num_docs) * 0.5)  # Decrease probability with rank
                           if random.random() < prob and len(relevant_docs) < num_relevant:
                               relevant_docs.append(doc)
-                      
+          
                       # Ensure we have at least some relevant documents
                       if not relevant_docs:
                           relevant_docs = docs[:min(3, len(docs))]  # Take top 3 if none selected
-                      
+          
                       for docno in relevant_docs:
                           f.write(f"{qid} 0 {docno} 1\n")
           
@@ -129,59 +129,59 @@ jobs:
           print(f"Created realistic qrels with relevance rate 0.25")
           print(f"Qrels written to: out/qrels.demo.txt")
           EOF
-          
-                - name: Evaluate Results
-                  run: |
-                    echo "📈 Evaluating results..."
-                    python3 tools/evaluate.py out/qrels.demo.txt runs/student.run --out_csv out/standings.csv --out_md out/standings.md
-                    echo "✅ Evaluation completed"
-          
-                - name: Display Results
-                  run: |
-                    echo "=== SEARCH ENGINE EVALUATION RESULTS ==="
-                    if [ -f "out/standings.md" ]; then
-                      echo "📊 Performance Metrics:"
-                      cat out/standings.md
-                      echo ""
-                      echo "📈 Detailed Results:"
-                      if [ -f "out/standings.csv" ]; then
-                        cat out/standings.csv
-                      fi
-                    else
-                      echo "❌ No evaluation results found"
-                    fi
-          
-                - name: Publish Summary
-                  run: |
-                    echo "## 🔍 CS7IS3 Assignment 2 - Search Engine Evaluation" >> $GITHUB_STEP_SUMMARY
-                    echo "" >> $GITHUB_STEP_SUMMARY
-                    echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
-                    if [ -f "out/standings.md" ]; then
-                      cat out/standings.md >> $GITHUB_STEP_SUMMARY
-                    else
-                      echo "❌ No evaluation results available" >> $GITHUB_STEP_SUMMARY
-                    fi
-                    echo "" >> $GITHUB_STEP_SUMMARY
-                    echo "### 📈 Key Metrics:" >> $GITHUB_STEP_SUMMARY
-                    if [ -f "out/standings.csv" ]; then
-                      best=$(tail -n +2 out/standings.csv | head -n1)
-                      IFS=',' read -r rank run MAP P20 nDCG <<< "$best"
-                      echo "- **MAP (Mean Average Precision)**: $MAP" >> $GITHUB_STEP_SUMMARY
-                      echo "- **P@20 (Precision at 20)**: $P20" >> $GITHUB_STEP_SUMMARY
-                      echo "- **nDCG@20 (Normalized DCG at 20)**: $nDCG" >> $GITHUB_STEP_SUMMARY
-                      echo "map=$MAP" >> $GITHUB_OUTPUT
-                      echo "p20=$P20" >> $GITHUB_OUTPUT
-                      echo "ndcg20=$nDCG" >> $GITHUB_OUTPUT
-                    fi
-                  id: summary
-          
-                - name: Upload Artifacts
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: search-engine-evaluation-results
-                    path: |
-                      out/standings.csv
-                      out/standings.md
-                      runs/student.run
-                      out/qrels.demo.txt
-          
+
+      - name: Evaluate Results
+        run: |
+          echo "📈 Evaluating results..."
+          python3 tools/evaluate.py out/qrels.demo.txt runs/student.run --out_csv out/standings.csv --out_md out/standings.md
+          echo "✅ Evaluation completed"
+
+      - name: Display Results
+        run: |
+          echo "=== SEARCH ENGINE EVALUATION RESULTS ==="
+          if [ -f "out/standings.md" ]; then
+            echo "📊 Performance Metrics:"
+            cat out/standings.md
+            echo ""
+            echo "📈 Detailed Results:"
+            if [ -f "out/standings.csv" ]; then
+              cat out/standings.csv
+            fi
+          else
+            echo "❌ No evaluation results found"
+          fi
+
+      - name: Publish Summary
+        run: |
+          echo "## 🔍 CS7IS3 Assignment 2 - Search Engine Evaluation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          if [ -f "out/standings.md" ]; then
+            cat out/standings.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No evaluation results available" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Key Metrics:" >> $GITHUB_STEP_SUMMARY
+          if [ -f "out/standings.csv" ]; then
+            best=$(tail -n +2 out/standings.csv | head -n1)
+            IFS=',' read -r rank run MAP P20 nDCG <<< "$best"
+            echo "- **MAP (Mean Average Precision)**: $MAP" >> $GITHUB_STEP_SUMMARY
+            echo "- **P@20 (Precision at 20)**: $P20" >> $GITHUB_STEP_SUMMARY
+            echo "- **nDCG@20 (Normalized DCG at 20)**: $nDCG" >> $GITHUB_STEP_SUMMARY
+            echo "map=$MAP" >> $GITHUB_OUTPUT
+            echo "p20=$P20" >> $GITHUB_OUTPUT
+            echo "ndcg20=$nDCG" >> $GITHUB_OUTPUT
+          fi
+        id: summary
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: search-engine-evaluation-results
+          path: |
+            out/standings.csv
+            out/standings.md
+            runs/student.run
+            out/qrels.demo.txt
+
