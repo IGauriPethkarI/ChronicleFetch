@@ -44,7 +44,8 @@ jobs:
           fi
           echo "✅ Found topics file"
           
-          if [ ! -d "Assignment Two" ]; then
+#          if [ ! -d "Assignment Two" ]; then
+          if [ ! -d "data" ]; then
             echo "❌ No dataset found"
             exit 1
           fi
@@ -61,7 +62,8 @@ jobs:
           # Run search engine
           echo "🚀 Running search engine..."
           echo "📚 Indexing documents..."
-          java -jar target/cs7is3-search-1.0.0.jar index --docs "Assignment Two" --index index
+          java -jar target/cs7is3-search-1.0.0.jar index --docs data --index index
+#          java -jar target/cs7is3-search-1.0.0.jar index --docs "Assignment Two" --index index
           
           echo "🔍 Searching topics..."
           java -jar target/cs7is3-search-1.0.0.jar search --index index --topics topics --output runs/student.run --numDocs 1000
