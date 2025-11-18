@@ -20,10 +20,14 @@ import java.util.stream.Stream;
 public class TrialIndexer {
 
     private final IndexWriter writer;
-    private int TotalDocuments = 0;
+    private int totalDocuments = 0;
+    private int skippedDuplicates = 0;
+    private int skippedEmptyDocs = 0;
     private final Set<Integer> seenHashes = new HashSet<>();
 
-    private static final Pattern   DOC_PATTERN = Pattern.compile("(?is)<DOC>(.*?)</DOC>");
+    private static final int COMMIT_BATCH_SIZE = 5000;
+
+    private static final Pattern DOC_PATTERN = Pattern.compile("(?is)<DOC>(.*?)</DOC>");
 
     public TrialIndexer(String indexDir) throws Exception {
         // Analyzer
@@ -38,8 +42,12 @@ public class TrialIndexer {
         if (writer != null) {
             writer.commit();
             writer.close();
+            System.out.println("Total documents indexed: " + totalDocuments);
+            System.out.println("Duplicates skipped: " + skippedDuplicates);
+            System.out.println("Empty documents skipped: " + skippedEmptyDocs);
         }
     }
+
 
     public static void createIndex(String dataDirectory, String indexDirectory) throws Exception {
         TrialIndexer indexer = new TrialIndexer(indexDirectory);
@@ -78,56 +86,71 @@ public class TrialIndexer {
 
             Map<String, String> parsed = null;
             try {
-                parsed = switch (parser) {
-                    case LATParser latParser -> latParser.parse(docBlock);
-                    case FBISParser fbisParser -> fbisParser.parse(docBlock);
-                    case FRParsers frParsers -> frParsers.parse(docBlock);
-                    case FTParser ftParser -> ftParser.parse(docBlock);
-                    default -> new LATParser().parse(docBlock);
-                };
+                if (parser instanceof LATParser) {
+                    parsed = ((LATParser) parser).parse(docBlock);
+                } else if (parser instanceof FBISParser) {
+                    parsed = ((FBISParser) parser).parse(docBlock);
+                } else if (parser instanceof FRParsers) {
+                    parsed = ((FRParsers) parser).parse(docBlock);
+                } else if (parser instanceof FTParser) {
+                    parsed = FTParser.parse(docBlock);  
+                } else {
+                    parsed = new LATParser().parse(docBlock);
+                }
             } catch (Exception e) {
                 System.err.println("Parser failed for file " + file + " : " + e.getMessage());
-                e.printStackTrace();
+                continue;  
             }
 
-            if (parsed == null) continue;
-
+            if (parsed == null || parsed.isEmpty()) {
+                continue;
+            }
             Document luceneDoc = normalize(parsed);
-            if (luceneDoc == null) continue;
+            if (luceneDoc == null) {
+                skippedDuplicates++;
+                continue;
+            }
+            
             String text = luceneDoc.get("text");
-
             if (text == null || text.isBlank()) {
-
                 String headline = luceneDoc.get("headline");
                 String metadata = luceneDoc.get("metadata");
                 String fallback = (headline == null ? "" : headline) + " " + (metadata == null ? "" : metadata);
 
-                if (fallback.isBlank()) continue;
+                if (fallback.isBlank()) {
+                    skippedEmptyDocs++;
+                    continue;
+                }
 
                 luceneDoc.removeField("text");
                 luceneDoc.add(new TextField("text", fallback.trim(), Field.Store.YES));
             }
 
             writer.addDocument(luceneDoc);
-            this.TotalDocuments++;
+            this.totalDocuments++;
             docsIndexedInFile++;
-            if ((docsIndexedInFile % 1000) == 0) {
-                System.out.printf("  - %d docs indexed in file %s%n", docsIndexedInFile, file.getName());
+            
+            if (totalDocuments % COMMIT_BATCH_SIZE == 0) {
+                writer.commit();
+                System.out.println("  >> Committed " + totalDocuments + " documents to index");
+            }
+            
+            if (docsIndexedInFile % 1000 == 0) {
+                System.out.printf("  - %d docs indexed from %s%n", docsIndexedInFile, file.getName());
             }
         }
 
         if (docsIndexedInFile > 0) {
-            System.out.printf("Indexed %d documents from %s%n", docsIndexedInFile, file.getName());
-            System.out.printf("Total Indexed %d documents", this.TotalDocuments);
+            System.out.printf("✓ Indexed %d documents from %s (Total: %d)%n", 
+                            docsIndexedInFile, file.getName(), this.totalDocuments);
         }
     }
-
     private Object getParser(String path) {
         String lower = path.toLowerCase();
-        if (lower.contains("latimes") || lower.contains("la")) return new LATParser();
+        if (lower.contains("latimes") || lower.contains("/la")) return new LATParser();
         if (lower.contains("fbis")) return new FBISParser();
-        if (lower.contains("fr94") || lower.contains("fr")) return new FRParsers();
-        if (lower.contains("ft")) return new FTParser();
+        if (lower.contains("fr94") || lower.contains("/fr/")) return new FRParsers();
+        if (lower.contains("/ft/")) return new FTParser();
 
         return new LATParser();
     }
@@ -136,15 +159,22 @@ public class TrialIndexer {
         Document doc = new Document();
 
         String docno = pick(raw, "DOCNO", "DOCID", "ID");
-        String text = pick(raw, "TEXT", "BODY", "CONTENT");
-        String headline = pick(raw, "HEADLINE", "TI", "TITLE");
+        String text = pick(raw, "TEXT", "BODY", "CONTENT", "SUMMARY", "SUPPLEM");
+        String headline = pick(raw, "HEADLINE", "TI", "TITLE", "H3");
         String date = pick(raw, "DATE", "DATE1", "DATELINE", "PUBDATE");
         String section = pick(raw, "SECTION", "CATEGORY", "F", "PAGE");
         String source = raw.getOrDefault("SOURCE", guessSourceFromRaw(raw));
 
-        int h = Objects.hash(headline == null ? "" : headline, text == null ? "" : text);
-        if (seenHashes.contains(h)) return null;
-        seenHashes.add(h);
+        // I hash both headline and text to catch duplicates better
+        int contentHash = Objects.hash(
+            safe(headline).toLowerCase(), 
+            safe(text).toLowerCase().substring(0, Math.min(safe(text).length(), 500))  
+        );
+        
+        if (seenHashes.contains(contentHash)) {
+            return null;  
+        }
+        seenHashes.add(contentHash);
 
         doc.add(new StringField("docno", safe(docno), Field.Store.YES));
         doc.add(new StringField("source", safe(source), Field.Store.YES));
@@ -154,10 +184,10 @@ public class TrialIndexer {
         doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
 
-
         Set<String> exclude = new HashSet<>(Arrays.asList(
-                "DOCNO","DOCID","ID","TEXT","BODY","CONTENT","HEADLINE","TI","TITLE",
-                "DATE","DATE1","DATELINE","PUBDATE","SECTION","CATEGORY","F","PAGE","SOURCE"
+                "DOCNO", "DOCID", "ID", "TEXT", "BODY", "CONTENT", "SUMMARY", "SUPPLEM",
+                "HEADLINE", "TI", "TITLE", "H3", "DATE", "DATE1", "DATELINE", "PUBDATE",
+                "SECTION", "CATEGORY", "F", "PAGE", "SOURCE"
         ));
 
         StringBuilder metaBuilder = new StringBuilder();
@@ -181,7 +211,8 @@ public class TrialIndexer {
     }
 
     private String normalizeDate(String input) {
-        if (input == null) return "";
+        if (input == null || input.isBlank()) return "";
+        
         String digits = input.replaceAll("[^0-9]", "");
         if (digits.length() >= 8) return digits.substring(0, 8);
         return digits;
@@ -214,10 +245,11 @@ public class TrialIndexer {
 
     private String guessSourceFromRaw(Map<String, String> raw) {
         if (raw.containsKey("SOURCE")) return raw.get("SOURCE");
-        if (raw.containsKey("HT") || raw.containsKey("BYLINE")) return "ft";
-        if (raw.containsKey("H2") || raw.containsKey("DATE1")) return "fbis";
-        if (raw.containsKey("USDEPT") || raw.containsKey("CFRNO")) return "fr";
-        if (raw.containsKey("GRAPHIC") || raw.containsKey("DOCID")) return "latimes";
+        if (raw.containsKey("HT" ) || raw.containsKey("PROFILE") || raw.containsKey("BYLINE")) return "ft";
+        if (raw.containsKey("H2") || raw.containsKey("DATE1") || raw.containsKey("HEADER")) return "fbis";
+        if (raw.containsKey("USDEPT") || raw.containsKey("CFRNO") || raw.containsKey("AGENCY")) return "fr";
+        if (raw.containsKey("GRAPHIC") || raw.containsKey("TYPE") || raw.containsKey("DOCID")) return "latimes";
+        
         return "unknown";
     }
 }
