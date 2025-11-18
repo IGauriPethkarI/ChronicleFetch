@@ -1,6 +1,5 @@
 package org.cs7is3.parsers;
 
-import javax.swing.text.html.parser.DocumentParser;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
