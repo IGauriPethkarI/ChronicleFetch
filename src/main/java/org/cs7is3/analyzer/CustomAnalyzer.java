@@ -7,14 +7,27 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 
+/**
+ * 1. StandardTokenizer - tokenizes text
+ * 2. LowerCaseFilter - normalizes to lowercase
+ * 3. ASCIIFoldingFilter - converts accented characters (e.g., café -> cafe)
+ * 4. EnglishPossessiveFilter - removes possessives ('s)
+ * 5. StopFilter - removes common English stopwords
+ * 6. LengthFilter - removes very short tokens (< 2 chars)
+ * 7. PorterStemFilter - applies Porter stemming algorithm
+ * 
+ * I removed ShingleFilter so we avoid index bloat and improve precision
+ */
 public class CustomAnalyzer extends Analyzer {
 
     private static final CharArraySet STOP_WORDS = EnglishAnalyzer.ENGLISH_STOP_WORDS_SET;
+    private static final int MIN_TOKEN_LENGTH = 2; // to improve noise reduction
+    private static final int MAX_TOKEN_LENGTH = 40; // to filter out spam and errors
 
     @Override
     protected TokenStreamComponents createComponents(String field) {
@@ -22,12 +35,20 @@ public class CustomAnalyzer extends Analyzer {
         StandardTokenizer tokenizer = new StandardTokenizer();
 
         TokenStream stream = tokenizer;
-
+        // I changed the order of some filters for better effectiveness
+        // convert to lowercase first 
         stream = new LowerCaseFilter(stream);
-        stream = new StopFilter(stream, STOP_WORDS);
+       
         stream = new ASCIIFoldingFilter(stream);
+        
         stream = new EnglishPossessiveFilter(stream);
-        stream = new ShingleFilter(stream, 2, 3);
+        
+        stream = new StopFilter(stream, STOP_WORDS);
+        
+        // filter out tokens that are too short or too long
+        stream = new LengthFilter(stream, MIN_TOKEN_LENGTH, MAX_TOKEN_LENGTH);
+        
+        // apply Porter stemming (running -> run, countries -> countri)
         stream = new PorterStemFilter(stream);
 
         return new TokenStreamComponents(tokenizer, stream);
