@@ -45,7 +45,6 @@ jobs:
           echo "✅ Found topics file"
 
 #          if [ ! -d "Assignment Two" ]; then
-
           if [ ! -d "data" ]; then
             echo "❌ No dataset found"
             exit 1
