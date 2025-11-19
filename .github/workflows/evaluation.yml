@@ -78,55 +78,55 @@ jobs:
           import random
           import re
           from pathlib import Path
-        
+          
           def parse_run_file(run_path):
               """Parse a TREC run file to extract retrieved documents per topic"""
-                topic_docs = {}
-                with open(run_path, "r", encoding="utf-8") as f:
+              topic_docs = {}
+              with open(run_path, "r", encoding="utf-8") as f:
                   for line in f:
-                    line = line.strip()
-                    if not line:
-                      continue
-                    parts = line.split()
-                    if len(parts) >= 6:
-                      qid, _, docno, rank, score, _ = parts[0], parts[1], parts[2], int(parts[3]), parts[4], parts[5]
-                      if qid not in topic_docs:
-                        topic_docs[qid] = []
-                      topic_docs[qid].append(docno)
-                return topic_docs
+                      line = line.strip()
+                      if not line:
+                          continue
+                      parts = line.split()
+                      if len(parts) >= 6:
+                          qid, _, docno, rank, score, _ = parts[0], parts[1], parts[2], int(parts[3]), parts[4], parts[5]
+                          if qid not in topic_docs:
+                              topic_docs[qid] = []
+                          topic_docs[qid].append(docno)
+              return topic_docs
           
           def create_realistic_qrels(topic_docs, out_qrels, relevance_rate=0.25):
               """Create realistic qrels by selecting some retrieved documents as relevant"""
-                random.seed(42)  # Fixed seed for reproducibility
+              random.seed(42)  # Fixed seed for reproducibility
           
-                with open(out_qrels, "w", encoding="utf-8") as f:
+              with open(out_qrels, "w", encoding="utf-8") as f:
                   for qid, docs in topic_docs.items():
-                    # Select a subset of retrieved documents as relevant
-                    num_docs = len(docs)
-                    num_relevant = max(1, int(num_docs * relevance_rate))  # At least 1 relevant doc
-                    
-                    # Bias toward higher-ranked documents
-                    relevant_docs = []
-                    for i, doc in enumerate(docs):
-                      # Higher-ranked docs have higher probability of being relevant
-                      prob = relevance_rate * (1.0 - (i / num_docs) * 0.5)  # Decrease probability with rank
-                      if random.random() < prob and len(relevant_docs) < num_relevant:
-                        relevant_docs.append(doc)
+                      # Select a subset of retrieved documents as relevant
+                      num_docs = len(docs)
+                      num_relevant = max(1, int(num_docs * relevance_rate))  # At least 1 relevant doc
           
-                    # Ensure we have at least some relevant documents
-                    if not relevant_docs:
-                      relevant_docs = docs[:min(3, len(docs))]  # Take top 3 if none selected
+                      # Bias toward higher-ranked documents
+                      relevant_docs = []
+                      for i, doc in enumerate(docs):
+                          # Higher-ranked docs have higher probability of being relevant
+                          prob = relevance_rate * (1.0 - (i / num_docs) * 0.5)  # Decrease probability with rank
+                          if random.random() < prob and len(relevant_docs) < num_relevant:
+                              relevant_docs.append(doc)
           
-                    for docno in relevant_docs:
-                      f.write(f"{qid} 0 {docno} 1\n")
+                      # Ensure we have at least some relevant documents
+                      if not relevant_docs:
+                          relevant_docs = docs[:min(3, len(docs))]  # Take top 3 if none selected
+          
+                      for docno in relevant_docs:
+                          f.write(f"{qid} 0 {docno} 1\n")
           
           # Parse the run file to get retrieved documents
-            topic_docs = parse_run_file("runs/student.run")
-            print(f"Found {len(topic_docs)} topics in run file")
-            
-            # Create realistic qrels based on retrieved documents
-            create_realistic_qrels(topic_docs, "out/qrels.demo.txt", 0.25)
-            print(f"Created realistic qrels with relevance rate 0.25")
+          topic_docs = parse_run_file("runs/student.run")
+          print(f"Found {len(topic_docs)} topics in run file")
+          
+          # Create realistic qrels based on retrieved documents
+          create_realistic_qrels(topic_docs, "out/qrels.demo.txt", 0.25)
+          print(f"Created realistic qrels with relevance rate 0.25")
           print(f"Qrels written to: out/qrels.demo.txt")
           EOF
 
@@ -184,4 +184,3 @@ jobs:
             out/standings.md
             runs/student.run
             out/qrels.demo.txt
-      
