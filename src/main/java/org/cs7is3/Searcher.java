@@ -27,6 +27,9 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.search.similarities.MultiSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
@@ -50,16 +53,22 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(new BM25Similarity(0.9f, 0.8f));
+            Similarity bm25 = new BM25Similarity(1.4f, 0.55f);
+            Similarity lmJM = new LMJelinekMercerSimilarity(0.95f); // λ = 0.7 typical
+
+            Similarity multiSim = new MultiSimilarity(new Similarity[]{bm25, lmJM});
+
+            searcher.setSimilarity(multiSim);
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
             Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 4.0f);
-            boosts.put("summary", 3.0f);
+            boosts.put("headline", 5.0f);
+            boosts.put("summary", 4.0f);
             boosts.put("text", 2.5f);
-            boosts.put("persons", 2.0f);
-            boosts.put("metadata_raw", 1.0f);
+            boosts.put("metadata_raw", 1.5f);
+            boosts.put("persons", 1.0f);
+
 
             MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer, boosts);
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
@@ -79,17 +88,15 @@ public class Searcher {
                 TermQuery fbisBoost = new TermQuery(new Term("source", "ft"));
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                bqBuilder.add(new BoostQuery(fbisBoost, 3.0f), BooleanClause.Occur.SHOULD);
+                bqBuilder.add(new BoostQuery(fbisBoost, 4.0f), BooleanClause.Occur.SHOULD);
 
                 TermQuery ftBoost = new TermQuery(new Term("source", "fbis"));
-                BooleanQuery.Builder ftbqBuilder = new BooleanQuery.Builder();
-                ftbqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                ftbqBuilder.add(new BoostQuery(ftBoost, 2.5f), BooleanClause.Occur.SHOULD);
+                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
+                bqBuilder.add(new BoostQuery(ftBoost, 3.0f), BooleanClause.Occur.SHOULD);
 
                 TermQuery latBoost = new TermQuery(new Term("source", "latimes"));
-                BooleanQuery.Builder latBuilder = new BooleanQuery.Builder();
-                latBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                latBuilder.add(new BoostQuery(latBoost, 1.5f), BooleanClause.Occur.SHOULD);
+                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
+                bqBuilder.add(new BoostQuery(latBoost, 1.5f), BooleanClause.Occur.SHOULD);
 
                 if (topic.narrative.toLowerCase(Locale.ROOT).contains("date")) {
                     TermQuery dateBoost = new TermQuery(new Term("date", "date"));
@@ -190,16 +197,16 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^3 ");
+        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^6");
 
         // Boost description moderately
         if (!topic.description.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^2 ");
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^4 ");
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
         if (!posNarr.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^1.5");
+            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
 
         return sb.toString().trim();
     }
