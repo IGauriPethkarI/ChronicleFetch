@@ -11,7 +11,8 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 
-import static org.cs7is3.analyzer.StopWords.NEWS_STOP_WORDS;
+import static org.cs7is3.constants.Constants.NEWS_STOP_WORDS;
+
 
 /**
  * 1. StandardTokenizer - tokenizes text
