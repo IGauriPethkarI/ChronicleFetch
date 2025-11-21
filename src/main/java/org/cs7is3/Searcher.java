@@ -27,6 +27,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
@@ -50,7 +51,7 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(new LMDirichletSimilarity(1500));
+            searcher.setSimilarity(new LMJelinekMercerSimilarity(0.2f));
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
@@ -75,7 +76,6 @@ public class Searcher {
                     throw new RuntimeException("Failed to build query for topic " + topic.id, e);
                 }
 
-                // add source/date boosts on top
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
 
@@ -98,9 +98,9 @@ public class Searcher {
                     bqBuilder.add(new BoostQuery(dateBoost, 5.0f), BooleanClause.Occur.SHOULD);
                 }
 
-                Query boostedQuery = bqBuilder.build();
+                Query finalQuery = bqBuilder.build();
 
-                TopDocs topDocs = searcher.search(boostedQuery, numDocs);
+                TopDocs topDocs = searcher.search(finalQuery, numDocs);
                 ScoreDoc[] hits = topDocs.scoreDocs;
 
                 for (int i = 0; i < hits.length; i++) {
@@ -184,7 +184,6 @@ public class Searcher {
                 }
             }
         }
-
         return topics;
     }
 

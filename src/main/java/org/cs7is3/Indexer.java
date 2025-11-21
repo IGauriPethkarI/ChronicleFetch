@@ -26,6 +26,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
 import org.cs7is3.parsers.FBISParser;
@@ -50,7 +51,7 @@ public class Indexer {
             // Analyzer
             //IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
             IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
-            cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
+            cfg.setSimilarity(new LMJelinekMercerSimilarity(0.2f));
             cfg.setRAMBufferSizeMB(256.0);
             cfg.setUseCompoundFile(false);
             this.writer = new IndexWriter(FSDirectory.open(indexPath), cfg);
