@@ -1,23 +1,35 @@
 package org.cs7is3;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
-import org.apache.lucene.queryparser.classic.QueryParserBase;
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.cs7is3.analyzer.CustomAnalyzer;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserBase;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.cs7is3.analyzer.CustomAnalyzer;
 
 public class Searcher {
 
@@ -38,37 +50,60 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(new BM25Similarity(1.2f, 0.75f));
+            searcher.setSimilarity(new BM25Similarity(0.9f, 0.8f));
 
             Analyzer analyzer = new CustomAnalyzer();
-            String[] fields = {"text", "headline"};
+            String[] fields = {"text", "headline","summary","persons","metadata_raw"};
             Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 2.0f);
-            boosts.put("text", 1.0f);
+            boosts.put("headline", 4.0f);
+            boosts.put("summary", 3.0f);
+            boosts.put("text", 2.5f);
+            boosts.put("persons", 2.0f);
+            boosts.put("metadata_raw", 1.0f);
 
-            MultiFieldQueryParser parser =
-                    new MultiFieldQueryParser(fields, analyzer, boosts);
+            MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer, boosts);
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
             String runTag = "cs7is3";
 
             for (Topic topic : topics) {
                 String queryText = buildQueryText(topic);
-                if (queryText.isEmpty()) queryText = topic.title;
 
-                Query query;
+                Query baseQuery;
                 try {
-                    query = parser.parse(QueryParserBase.escape(queryText));
+                    baseQuery = parser.parse(queryText);
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to parse query for topic " + topic.id, e);
                 }
 
-                TopDocs topDocs = searcher.search(query, numDocs);
+                TermQuery fbisBoost = new TermQuery(new Term("source", "ft"));
+                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
+                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
+                bqBuilder.add(new BoostQuery(fbisBoost, 3.0f), BooleanClause.Occur.SHOULD);
+
+                TermQuery ftBoost = new TermQuery(new Term("source", "fbis"));
+                BooleanQuery.Builder ftbqBuilder = new BooleanQuery.Builder();
+                ftbqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
+                ftbqBuilder.add(new BoostQuery(ftBoost, 2.5f), BooleanClause.Occur.SHOULD);
+
+                TermQuery latBoost = new TermQuery(new Term("source", "latimes"));
+                BooleanQuery.Builder latBuilder = new BooleanQuery.Builder();
+                latBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
+                latBuilder.add(new BoostQuery(latBoost, 1.5f), BooleanClause.Occur.SHOULD);
+
+                if (topic.narrative.toLowerCase(Locale.ROOT).contains("date")) {
+                    TermQuery dateBoost = new TermQuery(new Term("date", "date"));
+                    bqBuilder.add(new BoostQuery(dateBoost, 5.0f), BooleanClause.Occur.SHOULD);
+                }
+
+                Query boostedQuery = bqBuilder.build();
+
+                TopDocs topDocs = searcher.search(boostedQuery, numDocs);
                 ScoreDoc[] hits = topDocs.scoreDocs;
 
                 for (int i = 0; i < hits.length; i++) {
                     Document doc = searcher.storedFields().document(hits[i].doc);
-                    String docno = doc.get("docno"); 
+                    String docno = doc.get("docno");
 
                     String line = String.format(
                             Locale.ROOT,
@@ -85,16 +120,14 @@ public class Searcher {
     private List<Topic> parseTopics(Path topicsPath) throws IOException {
         List<Topic> topics = new ArrayList<>();
 
-        try (BufferedReader reader =
-                     Files.newBufferedReader(topicsPath, StandardCharsets.UTF_8)) {
-
+        try (BufferedReader reader = Files.newBufferedReader(topicsPath, StandardCharsets.UTF_8)) {
             String line;
             Topic current = null;
             StringBuilder title = null, desc = null, narr = null;
             boolean inDesc = false, inNarr = false;
 
             while ((line = reader.readLine()) != null) {
-                line = line.trim();
+                line = line.trim().replaceAll("\\s+", " ");
 
                 if (line.startsWith("<top")) {
                     current = new Topic();
@@ -156,17 +189,17 @@ public class Searcher {
     private String buildQueryText(Topic topic) {
         StringBuilder sb = new StringBuilder();
 
-        if (!topic.title.isEmpty()) sb.append(topic.title);
-        if (!topic.description.isEmpty()) {
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(topic.description);
-        }
+        // Boost title higher
+        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^3 ");
 
+        // Boost description moderately
+        if (!topic.description.isEmpty())
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^2 ");
+
+        // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty()) {
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(posNarr);
-        }
+        if (!posNarr.isEmpty())
+            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^1.5");
 
         return sb.toString().trim();
     }
