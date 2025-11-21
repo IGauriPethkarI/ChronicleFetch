@@ -1,5 +1,4 @@
 name: CS7IS3 Assignment 2 - Search Engine Evaluation
-
 on:
   push:
   pull_request:
@@ -7,11 +6,9 @@ on:
 jobs:
   test:
     runs-on: self-hosted
-
     env:
       LEADERBOARD_API_URL: ${{ secrets.LEADERBOARD_API_URL }}
       LEADERBOARD_API_TOKEN: ${{ secrets.LEADERBOARD_API_TOKEN }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -29,32 +26,49 @@ jobs:
       - name: Build and Test Search Engine
         run: |
           echo "=== CS7IS3 Assignment 2 - Search Engine Test ==="
-
+          
+          # Check project structure
           echo "📋 Checking project structure..."
-          if [ ! -f "pom.xml" ]; then echo "❌ No Maven project found"; exit 1; fi
+          if [ ! -f "pom.xml" ]; then
+            echo "❌ No Maven project found"
+            exit 1
+          fi
           echo "✅ Found Maven project"
-
-          if [ ! -d "src/main/java" ]; then echo "❌ No Java source code found"; exit 1; fi
+          
+          if [ ! -d "src/main/java" ]; then
+            echo "❌ No Java source code found"
+            exit 1
+          fi
           echo "✅ Found Java source code"
-
-          if [ ! -f "topics" ]; then echo "❌ No topics file found"; exit 1; fi
+          
+          if [ ! -f "topics" ]; then
+            echo "❌ No topics file found"
+            exit 1
+          fi
           echo "✅ Found topics file"
-
-          if [ ! -d "Assignment Two" ]; then echo "❌ No dataset found"; exit 1; fi
+          
+          if [ ! -d "Assignment Two" ]; then
+            echo "❌ No dataset found"
+            exit 1
+          fi
           echo "✅ Found dataset directory"
-
+          
+          # Build project
           echo "🔨 Building project..."
           mvn clean package -q
           echo "✅ Build completed successfully"
-
+          
+          # Create directories
           mkdir -p index runs out
-
+          
+          # Run search engine
           echo "🚀 Running search engine..."
           echo "📚 Indexing documents..."
           java -jar target/cs7is3-search-1.0.0.jar index --docs "Assignment Two" --index index
-
+          
           echo "🔍 Searching topics..."
           java -jar target/cs7is3-search-1.0.0.jar search --index index --topics topics --output runs/student.run --numDocs 1000
+          
           echo "✅ Search completed successfully"
 
       - name: Evaluate Results
@@ -71,41 +85,38 @@ jobs:
             cat out/standings.md
             echo ""
             echo "📈 Detailed Results:"
-            if [ -f "out/standings.csv" ]; then cat out/standings.csv; fi
+            if [ -f "out/standings.csv" ]; then
+              cat out/standings.csv
+            fi
           else
             echo "❌ No evaluation results found"
           fi
 
       - name: Publish Summary
-        id: summary
         run: |
           echo "## 🔍 CS7IS3 Assignment 2 - Search Engine Evaluation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
-
           if [ -f "out/standings.md" ]; then
             cat out/standings.md >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ No evaluation results available" >> $GITHUB_STEP_SUMMARY
           fi
-
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📈 Key Metrics:" >> $GITHUB_STEP_SUMMARY
-
           if [ -f "out/standings.csv" ]; then
             best=$(tail -n +2 out/standings.csv | head -n1)
             IFS=',' read -r rank run MAP P5 P20 nDCG <<< "$best"
-
             echo "- **MAP (Mean Average Precision)**: $MAP" >> $GITHUB_STEP_SUMMARY
             echo "- **P@5 (Precision at 5)**: $P5" >> $GITHUB_STEP_SUMMARY
             echo "- **P@20 (Precision at 20)**: $P20" >> $GITHUB_STEP_SUMMARY
             echo "- **nDCG@20 (Normalized DCG at 20)**: $nDCG" >> $GITHUB_STEP_SUMMARY
-
             echo "map=$MAP" >> $GITHUB_OUTPUT
             echo "p5=$P5" >> $GITHUB_OUTPUT
             echo "p20=$P20" >> $GITHUB_OUTPUT
             echo "ndcg20=$nDCG" >> $GITHUB_OUTPUT
           fi
+        id: summary
 
       - name: Submit metrics to leaderboard
         if: ${{ success() && env.LEADERBOARD_API_URL != '' && env.LEADERBOARD_API_TOKEN != '' }}
@@ -121,40 +132,46 @@ jobs:
           TEAM_MEMBERS: ${{ secrets.TEAM_MEMBERS }}
           LAST_COMMIT_RAW: ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
         run: |
-          if [ -n "$TEAM_NAME" ]; then TEAM="$TEAM_NAME"; else TEAM="${REPO#*/}"; fi
+          # Use TEAM_NAME secret if set, otherwise fall back to repo name
+          if [ -n "$TEAM_NAME" ]; then
+            TEAM="$TEAM_NAME"
+          else
+            TEAM="${REPO#*/}"
+          fi
           STUDENT_ID="$TEAM"
-
-          if [ -n "$TEAM_MEMBERS" ]; then STUDENT_NAME="$TEAM_MEMBERS"; else STUDENT_NAME="$ACTOR"; fi
-
-          LAST_COMMIT="$LAST_COMMIT_RAW"
-          if [ -z "$LAST_COMMIT" ]; then LAST_COMMIT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"; fi
-
+          # Use TEAM_MEMBERS secret if set, otherwise fall back to GitHub actor
+          if [ -n "$TEAM_MEMBERS" ]; then
+            STUDENT_NAME="$TEAM_MEMBERS"
+          else
+            STUDENT_NAME="${ACTOR}"
+          fi
+          LAST_COMMIT="${LAST_COMMIT_RAW}"
+          if [ -z "$LAST_COMMIT" ]; then
+            LAST_COMMIT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+          # Remove trailing slash from URL if present
           API_URL="${LEADERBOARD_API_URL%/}"
-
           echo "📤 Submitting metrics to leaderboard..."
           echo "URL: ${API_URL}/api/results"
-
           response=$(curl -sSfL -w "\n%{http_code}" -X POST "${API_URL}/api/results" \
             -H "Authorization: Bearer ${LEADERBOARD_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
-              --arg student_id "$STUDENT_ID" \
-              --arg student_name "$STUDENT_NAME" \
-              --arg team "$TEAM" \
-              --arg repo "$REPO" \
-              --arg run_id "$RUN_ID" \
-              --arg last_commit "$LAST_COMMIT" \
-              --argjson map "${MAP_VALUE:-0}" \
-              --argjson p5 "${P5_VALUE:-0}" \
-              --argjson p20 "${P20_VALUE:-0}" \
-              --argjson ndcg "${NDCG_VALUE:-0}" \
-              '{student_id:$student_id, student_name:$student_name, team:$team, repo:$repo, run_id:$run_id, last_commit:$last_commit, map:$map, p5:$p5, p20:$p20, ndcg:$ndcg}')")
+                  --arg student_id "$STUDENT_ID" \
+                  --arg student_name "$STUDENT_NAME" \
+                  --arg team "$TEAM" \
+                  --arg repo "$REPO" \
+                  --arg run_id "$RUN_ID" \
+                  --arg last_commit "$LAST_COMMIT" \
+                  --argjson map "${MAP_VALUE:-0}" \
+                  --argjson p5 "${P5_VALUE:-0}" \
+                  --argjson p20 "${P20_VALUE:-0}" \
+                  --argjson ndcg "${NDCG_VALUE:-0}" \
+                  '{student_id:$student_id, student_name:$student_name, team:$team, repo:$repo, run_id:$run_id, last_commit:$last_commit, map:$map, p5:$p5, p20:$p20, ndcg:$ndcg}')")
           http_code=$(echo "$response" | tail -n 1)
           body=$(echo "$response" | sed '$d')
-
           echo "HTTP Status: $http_code"
           echo "Response: $body"
-
           if [ "$http_code" -eq 200 ]; then
             echo "✅ Successfully submitted metrics to leaderboard!"
           elif [ "$http_code" -eq 401 ]; then
