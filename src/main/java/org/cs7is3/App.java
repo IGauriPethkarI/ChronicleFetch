@@ -5,7 +5,7 @@ import java.nio.file.Paths;
 
 public class App {
 
-    public static final String DEFAULT_DATA_PATH = "data";
+    public static final String DEFAULT_DATA_PATH = "Assignment Two";
     public static final String DEFAULT_INDEX_PATH = "index";
     public static final String DEFAULT_TOPICS_PATH = "topics";
     public static final String DEFAULT_OUTPUT_PATH = "runs/results.run";
@@ -58,7 +58,8 @@ public class App {
 
         long startTime = System.currentTimeMillis();
 
-        TrialIndexer.createIndex(dataPath, indexPath);
+        Indexer indexer = new Indexer();
+        indexer.buildIndex(Paths.get(dataPath), Paths.get(indexPath));
 
         long endTime = System.currentTimeMillis();
         long duration = (endTime - startTime) / 1000;
