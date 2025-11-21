@@ -26,7 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
@@ -50,7 +50,7 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(new BM25Similarity(0.9f, 0.8f));
+            searcher.setSimilarity(new LMDirichletSimilarity(1500));
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
@@ -62,36 +62,38 @@ public class Searcher {
             boosts.put("metadata_raw", 1.0f);
 
             MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer, boosts);
-            parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
+                parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
             String runTag = "cs7is3";
 
             for (Topic topic : topics) {
-                String queryText = buildQueryText(topic);
-
+                // build a weighted BooleanQuery from title / desc / positive narrative
                 Query baseQuery;
                 try {
-                    baseQuery = parser.parse(queryText);
+                    baseQuery = buildWeightedQuery(topic, parser);
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse query for topic " + topic.id, e);
+                    throw new RuntimeException("Failed to build query for topic " + topic.id, e);
                 }
 
-                TermQuery fbisBoost = new TermQuery(new Term("source", "ft"));
+                // add source/date boosts on top
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                bqBuilder.add(new BoostQuery(fbisBoost, 3.0f), BooleanClause.Occur.SHOULD);
 
-                TermQuery ftBoost = new TermQuery(new Term("source", "fbis"));
-                BooleanQuery.Builder ftbqBuilder = new BooleanQuery.Builder();
-                ftbqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                ftbqBuilder.add(new BoostQuery(ftBoost, 2.5f), BooleanClause.Occur.SHOULD);
+                bqBuilder.add(
+                    new BoostQuery(new TermQuery(new Term("source", "ft")), 3.0f),
+                    BooleanClause.Occur.SHOULD
+                );
+                bqBuilder.add(
+                    new BoostQuery(new TermQuery(new Term("source", "fbis")), 2.5f),
+                    BooleanClause.Occur.SHOULD
+                );
+                bqBuilder.add(
+                    new BoostQuery(new TermQuery(new Term("source", "latimes")), 1.5f),
+                    BooleanClause.Occur.SHOULD
+                );
 
-                TermQuery latBoost = new TermQuery(new Term("source", "latimes"));
-                BooleanQuery.Builder latBuilder = new BooleanQuery.Builder();
-                latBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                latBuilder.add(new BoostQuery(latBoost, 1.5f), BooleanClause.Occur.SHOULD);
-
-                if (topic.narrative.toLowerCase(Locale.ROOT).contains("date")) {
+                if (topic.narrative != null &&
+                    topic.narrative.toLowerCase(Locale.ROOT).contains("date")) {
                     TermQuery dateBoost = new TermQuery(new Term("date", "date"));
                     bqBuilder.add(new BoostQuery(dateBoost, 5.0f), BooleanClause.Occur.SHOULD);
                 }
@@ -186,23 +188,32 @@ public class Searcher {
         return topics;
     }
 
-    private String buildQueryText(Topic topic) {
-        StringBuilder sb = new StringBuilder();
+    private Query buildWeightedQuery(Topic topic,
+                                     MultiFieldQueryParser parser) throws Exception {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
 
-        // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^3 ");
+        // 1. Title (strong)
+        if (!topic.title.isEmpty()) {
+            Query titleQ = parser.parse(QueryParserBase.escape(topic.title));
+            builder.add(new BoostQuery(titleQ, 0.9f), BooleanClause.Occur.SHOULD);
+        }
 
-        // Boost description moderately
-        if (!topic.description.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^2 ");
+        // 2. Description (medium)
+        if (!topic.description.isEmpty()) {
+            Query descQ = parser.parse(QueryParserBase.escape(topic.description));
+            builder.add(new BoostQuery(descQ, 0.5f), BooleanClause.Occur.SHOULD);
+        }
 
-        // Boost narrative lightly
+        // 3. Positive narrative (weak)
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^1.5");
+        if (!posNarr.isEmpty()) {
+            Query narrQ = parser.parse(QueryParserBase.escape(posNarr));
+            builder.add(new BoostQuery(narrQ, 0.3f), BooleanClause.Occur.SHOULD);
+        }
 
-        return sb.toString().trim();
+        return builder.build();
     }
+
 
     private String extractPositiveNarrative(String narrative) {
         if (narrative == null || narrative.isEmpty()) return "";
