@@ -1,35 +1,37 @@
 package org.cs7is3;
 
-// TODO: Implement your Lucene indexer
-// This class should build a Lucene index from the document collection
-//
-// Requirements:
-// 1. Parse documents from the "Assignment Two" dataset
-// 2. Extract relevant fields (DOCNO, TITLE, TEXT, etc.)
-// 3. Create a Lucene index with appropriate analyzers
-// 4. Handle document parsing errors gracefully
-//
-// The GitHub Actions workflow will call:
-//   indexer.buildIndex(Path docsPath, Path indexPath)
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
 
-import org.apache.lucene.document.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.FSDirectory;
-
 import org.cs7is3.analyzer.CustomAnalyzer;
-import org.cs7is3.parsers.*;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import org.cs7is3.parsers.FBISParser;
+import org.cs7is3.parsers.FRParsers;
+import org.cs7is3.parsers.FTParser;
+import org.cs7is3.parsers.LATParser;
 
 public class Indexer {
 
@@ -171,10 +173,12 @@ public class Indexer {
         Document doc = new Document();
 
         String docno = pick(raw, "DOCNO", "DOCID", "ID");
-        String text = pick(raw, "TEXT", "BODY", "CONTENT", "SUMMARY", "SUPPLEM");
+        String text = pick(raw, "TEXT", "BODY", "CONTENT",  "SUPPLEM");
         String headline = pick(raw, "HEADLINE", "TI", "TITLE", "H3");
         String date = pick(raw, "DATE", "DATE1", "DATELINE", "PUBDATE");
         String section = pick(raw, "SECTION", "CATEGORY", "F", "PAGE");
+        String byline = pick(raw, "BYLINE");
+        String summary = pick(raw,"SUMMARY");
         String source = raw.getOrDefault("SOURCE", guessSourceFromRaw(raw));
 
         // I hash both headline and text to catch duplicates better
@@ -192,6 +196,8 @@ public class Indexer {
         doc.add(new StringField("source", safe(source), Field.Store.YES));
         doc.add(new TextField("text", safe(text), Field.Store.YES));
         doc.add(new TextField("headline", safe(headline), Field.Store.YES));
+        doc.add(new TextField("persons",safe(byline),Field.Store.YES));
+        doc.add(new TextField("summary",safe(summary),Field.Store.YES));
         doc.add(new StoredField("headline_raw", safe(headline)));
         doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
@@ -215,9 +221,22 @@ public class Indexer {
         doc.add(new StoredField("metadata", metadata));
 
         String meta = buildRawMetadata(raw);
-        if (meta.length() > 35000)
-            meta = meta.substring(0, 35000);
-        doc.add(new TextField("metadata_raw", String.join(" ",meta), Field.Store.YES));
+        if (meta.length() > 35000) {
+            try {
+                ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                GZIPOutputStream gzipStream = new GZIPOutputStream(byteStream);
+                gzipStream.write(meta.getBytes("UTF-8"));
+                gzipStream.close();
+                byte[] compressed = byteStream.toByteArray();
+
+                // Encode as Base64 so it can be stored as text
+                meta = Base64.getEncoder().encodeToString(compressed);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        doc.add(new TextField("metadata_raw", meta, Field.Store.YES));
 
         return doc;
     }
