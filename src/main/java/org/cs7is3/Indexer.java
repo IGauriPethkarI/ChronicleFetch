@@ -24,6 +24,8 @@ import org.cs7is3.parsers.*;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -221,11 +223,57 @@ public class Indexer {
     }
 
     private String normalizeDate(String input) {
+        DateTimeFormatter OUT_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd MMMM");
         if (input == null || input.isBlank()) return "";
 
-        String digits = input.replaceAll("[^0-9]", "");
-        if (digits.length() >= 8) return digits.substring(0, 8);
-        return digits;
+        String cleaned = input.replaceAll("[^A-Za-z0-9, ]", " ").trim();
+
+        Pattern datePattern = Pattern.compile(
+                "(\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4})|" +        // e.g., 28 Feb 1994
+                        "([A-Za-z]+\\s+\\d{1,2},\\s+\\d{4})|" +       // e.g., February 15, 1994
+                        "(\\d{4}\\d{2}\\d{2})"                        // e.g., 19940215
+        );
+        Matcher matcher = datePattern.matcher(cleaned);
+        String dateStr = null;
+        if (matcher.find()) {
+            dateStr = matcher.group().trim();
+        } else {
+            return "";
+        }
+
+        DateTimeFormatter[] formats = new DateTimeFormatter[]{
+                DateTimeFormatter.ofPattern("dd MMM yyyy"),
+                DateTimeFormatter.ofPattern("dd MMMM yyyy"),
+                DateTimeFormatter.ofPattern("MMMM d, yyyy"),
+                DateTimeFormatter.ofPattern("MMMM dd, yyyy"),
+                DateTimeFormatter.ofPattern("yyyyMMdd")
+        };
+
+        for (DateTimeFormatter f : formats) {
+            try {
+                LocalDate date = LocalDate.parse(dateStr, f);
+                return date.format(OUT_FORMAT);
+            } catch (Exception ignored) {}
+        }
+
+        String digits = dateStr.replaceAll("[^0-9]", "");
+        if (digits.length() == 6) {
+            try {
+                int year = Integer.parseInt(digits.substring(0, 2));
+                int month = Integer.parseInt(digits.substring(2, 4));
+                int day = Integer.parseInt(digits.substring(4, 6));
+
+                if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+
+                year += (year < 30 ? 2000 : 1900);
+                LocalDate date = LocalDate.of(year, month, day);
+                return date.format(OUT_FORMAT);
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        return "";
     }
 
     private String buildRawMetadata(Map<String,String> raw) {
