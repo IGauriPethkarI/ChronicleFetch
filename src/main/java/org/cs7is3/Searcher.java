@@ -26,8 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.similarities.LMDirichletSimilarity;
-import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
@@ -51,7 +50,7 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(new LMJelinekMercerSimilarity(0.2f));
+            searcher.setSimilarity(new BM25Similarity(1.2f, 0.75f));
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
@@ -194,20 +193,20 @@ public class Searcher {
         // 1. Title (strong)
         if (!topic.title.isEmpty()) {
             Query titleQ = parser.parse(QueryParserBase.escape(topic.title));
-            builder.add(new BoostQuery(titleQ, 0.9f), BooleanClause.Occur.SHOULD);
+            builder.add(new BoostQuery(titleQ, 0.1f), BooleanClause.Occur.SHOULD);
         }
 
         // 2. Description (medium)
         if (!topic.description.isEmpty()) {
             Query descQ = parser.parse(QueryParserBase.escape(topic.description));
-            builder.add(new BoostQuery(descQ, 0.5f), BooleanClause.Occur.SHOULD);
+            builder.add(new BoostQuery(descQ, 1.0f), BooleanClause.Occur.SHOULD);
         }
 
         // 3. Positive narrative (weak)
         String posNarr = extractPositiveNarrative(topic.narrative);
         if (!posNarr.isEmpty()) {
             Query narrQ = parser.parse(QueryParserBase.escape(posNarr));
-            builder.add(new BoostQuery(narrQ, 0.3f), BooleanClause.Occur.SHOULD);
+            builder.add(new BoostQuery(narrQ, 0.4f), BooleanClause.Occur.SHOULD);
         }
 
         return builder.build();
