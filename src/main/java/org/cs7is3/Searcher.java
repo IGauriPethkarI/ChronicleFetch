@@ -63,9 +63,9 @@ public class Searcher {
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
             Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 5.0f);
+            boosts.put("headline", 8.0f);
             boosts.put("summary", 4.0f);
-            boosts.put("text", 2.5f);
+            boosts.put("text", 4.0f);
             boosts.put("metadata_raw", 1.5f);
             boosts.put("persons", 1.0f);
 
