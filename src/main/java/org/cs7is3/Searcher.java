@@ -202,7 +202,6 @@ public class Searcher {
             sb.append("(");
             for (int i = 0; i < splitTitle.length; i++) {
                 sb.append("text:(").append(QueryParserBase.escape(splitTitle[i]));
-                if (i < splitTitle.length - 1) sb.append(" OR ");
             }
             sb.append(")^8 ");
         }
@@ -213,7 +212,6 @@ public class Searcher {
             sb.append("(");
             for(int i = 0; i < splitDesc.length; i++) {
                 sb.append("text:(").append(QueryParserBase.escape(splitDesc[i]));
-                if (i < splitDesc.length - 1) sb.append(" OR ");
             }
             sb.append(")^6 ");
         }
@@ -225,7 +223,6 @@ public class Searcher {
             sb.append("(");
             for(int i = 0; i < splitNarr.length; i++) {
                 sb.append("text:(").append(QueryParserBase.escape(splitNarr[i]));
-                if (i < splitNarr.length - 1) sb.append(" OR ");
             }
             sb.append(")^2.5");
         }
