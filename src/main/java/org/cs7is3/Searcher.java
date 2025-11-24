@@ -197,29 +197,15 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) {
-            String[] splitTitle = topic.title.split(" ");
-            for(String word : splitTitle) {
-                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^8");
-            }
-        }
+        if (!topic.title.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^8");
 
         // Boost description moderately
-        if (!topic.description.isEmpty()) {
-            String[] splitDesc = topic.description.split(" ");
-            for(String word : splitDesc) {
-                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^6");
-            }
-        }
+        if (!topic.description.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty()) {
-            String[] splitNarr = posNarr.split(" ");
-            for(String word : splitNarr) {
-                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^2.5");
-            }
-        }
+        if (!posNarr.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
+
 
         return sb.toString().trim();
     }
