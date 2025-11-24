@@ -200,7 +200,7 @@ public class Searcher {
         if (!topic.title.isEmpty()) {
             String[] splitTitle = topic.title.split(" ");
             for(String word : splitTitle) {
-                sb.append("title:(").append(QueryParserBase.escape(word)).append(")^8");
+                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^8");
             }
         }
 
