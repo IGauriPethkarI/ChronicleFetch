@@ -53,12 +53,9 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            Similarity bm25 = new BM25Similarity(1.4f, 0.55f);
-            Similarity lmJM = new LMJelinekMercerSimilarity(0.95f); // λ = 0.7 typical
+            Similarity bm25 = new BM25Similarity(1.2f, 0.75f);
 
-            Similarity multiSim = new MultiSimilarity(new Similarity[]{bm25, lmJM});
-
-            searcher.setSimilarity(multiSim);
+            searcher.setSimilarity(bm25);
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
@@ -197,16 +194,15 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^6");
+        if (!topic.title.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^8");
 
         // Boost description moderately
-        if (!topic.description.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^4 ");
+        if (!topic.description.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
+        if (!posNarr.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
+
 
         return sb.toString().trim();
     }
