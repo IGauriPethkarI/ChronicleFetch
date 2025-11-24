@@ -199,27 +199,35 @@ public class Searcher {
         // Boost title higher
         if (!topic.title.isEmpty()) {
             String[] splitTitle = topic.title.split(" ");
-            for(String word : splitTitle) {
-                sb.append("headline:(").append(QueryParserBase.escape(word)).append(")^8");
+            sb.append("(");
+            for (int i = 0; i < splitTitle.length; i++) {
+                sb.append("text:(").append(QueryParserBase.escape(splitTitle[i]));
+                if (i < splitTitle.length - 1) sb.append(" OR ");
             }
+            sb.append(")^8 ");
         }
 
         // Boost description moderately
         if (!topic.description.isEmpty()) {
             String[] splitDesc = topic.description.split(" ");
-            for(String word : splitDesc) {
-                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^6");
-                sb.append("summary:(").append(QueryParserBase.escape(word)).append(")^6");
+            sb.append("(");
+            for(int i = 0; i < splitDesc.length; i++) {
+                sb.append("text:(").append(QueryParserBase.escape(splitDesc[i]));
+                if (i < splitDesc.length - 1) sb.append(" OR ");
             }
+            sb.append(")^6 ");
         }
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
         if (!posNarr.isEmpty()) {
             String[] splitNarr = posNarr.split(" ");
-            for(String word : splitNarr) {
-                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^2.5");
+            sb.append("(");
+            for(int i = 0; i < splitNarr.length; i++) {
+                sb.append("text:(").append(QueryParserBase.escape(splitNarr[i]));
+                if (i < splitNarr.length - 1) sb.append(" OR ");
             }
+            sb.append(")^2.5");
         }
 
         return sb.toString().trim();
