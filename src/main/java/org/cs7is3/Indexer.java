@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -50,8 +51,8 @@ public class Indexer {
     public void buildIndex(Path docsPath, Path indexPath) throws IOException {
         try {
             // Analyzer
-            //IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
-            IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
+            IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
+            //IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
             cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
             cfg.setRAMBufferSizeMB(256.0);
             cfg.setUseCompoundFile(false);

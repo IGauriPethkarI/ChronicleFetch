@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -21,6 +22,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -39,6 +41,18 @@ import org.cs7is3.analyzer.CustomAnalyzer;
 
 public class Searcher {
 
+    // Ablation flags
+    private static final boolean USE_TITLE = true;
+    private static final boolean USE_DESCRIPTION = true;
+    private static final boolean USE_NARRATIVE = true;
+
+    // PRF flags
+    private static final boolean USE_PRF = true;
+    private static final int PRF_FEEDBACK_DOCS = 30;   // try 30, then 50
+    private static final int PRF_EXPANSION_TERMS = 20; // try 20, then 30
+    private static final float PRF_BOOST = 0.3f;       // try 0.5, then 0.3–0.4
+
+
     private static class Topic {
         String id;
         String title = "";
@@ -56,21 +70,12 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            Similarity bm25 = new BM25Similarity(1.5f, 0.4f);
+            Similarity bm25 = new BM25Similarity(1.2f, 0.75f);
 
             searcher.setSimilarity(bm25);
 
-            Analyzer analyzer = new CustomAnalyzer();
-            String[] fields = {"text", "headline","summary","persons","metadata_raw"};
-            Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 3.0f);
-            boosts.put("summary", 2.0f);
-            boosts.put("text", 1.0f);
-            boosts.put("metadata_raw", 0.8f);
-            boosts.put("persons", 1.5f);
-
-
-            MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer, boosts);
+            Analyzer analyzer = new EnglishAnalyzer();
+            QueryParser parser = new QueryParser("text", analyzer);
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
             String runTag = "cs7is3";
@@ -85,32 +90,19 @@ public class Searcher {
                     throw new RuntimeException("Failed to parse query for topic " + topic.id, e);
                 }
 
-                TermQuery fbisBoost = new TermQuery(new Term("source", "ft"));
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                bqBuilder.add(new BoostQuery(fbisBoost, 4.0f), BooleanClause.Occur.SHOULD);
-
-                TermQuery ftBoost = new TermQuery(new Term("source", "fbis"));
-                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                bqBuilder.add(new BoostQuery(ftBoost, 3.0f), BooleanClause.Occur.SHOULD);
-
-                TermQuery latBoost = new TermQuery(new Term("source", "latimes"));
-                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);
-                bqBuilder.add(new BoostQuery(latBoost, 1.5f), BooleanClause.Occur.SHOULD);
-
-                if (topic.narrative.toLowerCase(Locale.ROOT).contains("date")) {
-                    TermQuery dateBoost = new TermQuery(new Term("date", "date"));
-                    bqBuilder.add(new BoostQuery(dateBoost, 5.0f), BooleanClause.Occur.SHOULD);
-                }
+                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);         
 
                 Query boostedQuery = bqBuilder.build();
 
-                // get feedback docs
-                TopDocs feedback = searcher.search(boostedQuery, Math.max(numDocs, 20));
-                // expand query with PRF
-                Query prfQuery = expandWithPRF(boostedQuery, feedback, reader, 10, 0.5f);
-                // final search
-                TopDocs topDocs = searcher.search(prfQuery, numDocs);
+                TopDocs feedback = searcher.search(boostedQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
+
+                Query finalQuery = boostedQuery;
+                if (USE_PRF) {
+                    finalQuery = expandWithPRF(boostedQuery, feedback, reader,
+                                               PRF_EXPANSION_TERMS, PRF_BOOST);
+                }
+                TopDocs topDocs = searcher.search(finalQuery, numDocs);
 
                 ScoreDoc[] hits = topDocs.scoreDocs;
 
@@ -202,42 +194,72 @@ public class Searcher {
     private String buildQueryText(Topic topic) {
         StringBuilder sb = new StringBuilder();
 
-        // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^8");
-
-        // Boost description moderately
-        if (!topic.description.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
-
-        // Boost narrative lightly
-        String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
-
-
+        if (USE_TITLE && !topic.title.isEmpty()) {
+            sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^6 ");
+        }
+    
+        if (USE_DESCRIPTION && !topic.description.isEmpty()) {
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^3 ");
+        }
+    
+        if (USE_NARRATIVE) {
+            String posNarr = extractPositiveNarrative(topic.narrative);
+            if (!posNarr.isEmpty()) {
+                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2 ");
+            }
+        }
         return sb.toString().trim();
     }
 
     private String extractPositiveNarrative(String narrative) {
-        if (narrative == null || narrative.isEmpty()) return "";
-        String[] sentences = narrative.split("\\.\\s+");
+        if (narrative == null) return "";
+        narrative = narrative.trim();
+        if (narrative.isEmpty()) return "";
+        narrative = narrative.replaceAll("\\s+", " ");
+    
+        String[] sentences = narrative.split("(?<=[.!?])\\s+");
         StringBuilder sb = new StringBuilder();
-        for (String s : sentences) {
-            String trimmed = s.trim();
-            if (trimmed.isEmpty()) continue;
-            String lower = trimmed.toLowerCase(Locale.ROOT);
-            if (lower.contains("not relevant") || lower.contains("irrelevant")) continue;
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(trimmed);
+    
+        for (String sentence : sentences) {
+            String s = sentence.trim();
+            if (s.isEmpty()) continue;
+    
+            String[] clauseLevel1 = s.split("[;:]");
+            for (String clause : clauseLevel1) {
+                String c1 = clause.trim();
+                if (c1.isEmpty()) continue;
+    
+                String[] subClauses = c1.split(",");
+                for (String sub : subClauses) {
+                    String c = sub.trim();
+                    if (c.isEmpty()) continue;
+    
+                    String lower = c.toLowerCase(Locale.ROOT);
+                    if (lower.contains("not relevant") || lower.contains("irrelevant")) {
+                        continue;
+                    }
+    
+                    if (sb.length() > 0) sb.append(' ');
+                    sb.append(c);
+                }
+            }
         }
         return sb.toString();
     }
+    
+    
 
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
-                            DirectoryReader reader, int topTerms, float boost) throws IOException {
-        Map<String,Integer> tf = new HashMap<>();
+        DirectoryReader reader, int topTerms, float boost) throws IOException {
 
+        Map<String,Integer> tf = new HashMap<>();
         TermVectors tvReader = reader.termVectors();
 
-        for (int i = 0; i < Math.min(feedbackDocs.scoreDocs.length, 20); i++) {
+        java.util.Set<String> originalTerms = new java.util.HashSet<>();
+        collectTerms(baseQuery, "text", originalTerms);
+        int maxDoc = reader.maxDoc();
+
+        for (int i = 0; i < Math.min(feedbackDocs.scoreDocs.length, PRF_FEEDBACK_DOCS); i++) {
             int docId = feedbackDocs.scoreDocs[i].doc;
             Fields vectors = tvReader.get(docId);
             if (vectors == null) continue;
@@ -249,6 +271,13 @@ public class Searcher {
             BytesRef ref;
             while ((ref = te.next()) != null) {
                 String term = ref.utf8ToString();
+                if (term.length() < 4) continue;
+                if (originalTerms.contains(term)) continue;
+
+                int df = reader.docFreq(new Term("text", term));
+                if (df < 3) continue;
+                if (df > 0.3 * maxDoc) continue;
+
                 tf.put(term, tf.getOrDefault(term, 0) + 1);
             }
         }
@@ -266,6 +295,23 @@ public class Searcher {
             expanded.add(new BoostQuery(tq, boost), BooleanClause.Occur.SHOULD);
             added++;
         }
+
         return expanded.build();
     }
+
+
+    private void collectTerms(Query q, String field, java.util.Set<String> out) {
+        if (q instanceof BooleanQuery) {
+            for (BooleanClause c : ((BooleanQuery) q).clauses()) {
+                collectTerms(c.query(), field, out);
+            }
+        } else if (q instanceof TermQuery) {
+            Term t = ((TermQuery) q).getTerm();
+            if (field.equals(t.field())) {
+                out.add(t.text());
+            }
+        } else if (q instanceof BoostQuery) {
+            collectTerms(((BoostQuery) q).getQuery(), field, out);
+        }
+    }    
 }
