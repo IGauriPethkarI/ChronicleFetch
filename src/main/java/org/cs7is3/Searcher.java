@@ -197,11 +197,11 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^8");
+        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^20");
 
         // Boost description moderately
         if (!topic.description.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^10");
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
