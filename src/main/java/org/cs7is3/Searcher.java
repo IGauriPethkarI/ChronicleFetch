@@ -197,35 +197,14 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) {
-            String[] splitTitle = topic.title.split(" ");
-            sb.append("(");
-            for (int i = 0; i < splitTitle.length; i++) {
-                sb.append("text:(").append(QueryParserBase.escape(splitTitle[i]));
-            }
-            sb.append(")^8 ");
-        }
+        if (!topic.title.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^8");
 
         // Boost description moderately
-        if (!topic.description.isEmpty()) {
-            String[] splitDesc = topic.description.split(" ");
-            sb.append("(");
-            for(int i = 0; i < splitDesc.length; i++) {
-                sb.append("text:(").append(QueryParserBase.escape(splitDesc[i]));
-            }
-            sb.append(")^6 ");
-        }
+        if (!topic.description.isEmpty())  sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty()) {
-            String[] splitNarr = posNarr.split(" ");
-            sb.append("(");
-            for(int i = 0; i < splitNarr.length; i++) {
-                sb.append("text:(").append(QueryParserBase.escape(splitNarr[i]));
-            }
-            sb.append(")^2.5");
-        }
+        if (!posNarr.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
 
         return sb.toString().trim();
     }
