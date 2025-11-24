@@ -204,9 +204,9 @@ public class Searcher {
             sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
 
         // Boost narrative lightly
-        // String posNarr = extractPositiveNarrative(topic.narrative);
-        // if (!posNarr.isEmpty())
-        //     sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
+        String posNarr = extractPositiveNarrative(topic.narrative);
+        if (!posNarr.isEmpty())
+            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^4");
 
         return sb.toString().trim();
     }
