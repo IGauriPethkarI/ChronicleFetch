@@ -58,7 +58,7 @@ public class Searcher {
 
             Similarity multiSim = new MultiSimilarity(new Similarity[]{bm25, lmJM});
 
-            searcher.setSimilarity(multiSim);
+            searcher.setSimilarity(bm25);
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
