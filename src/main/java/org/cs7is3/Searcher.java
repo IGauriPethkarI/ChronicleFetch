@@ -197,7 +197,7 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^8");
+        if (!topic.title.isEmpty()) sb.append("headline:(").append(QueryParserBase.escape(topic.title)).append(")^8");
 
         // Boost description moderately
         if (!topic.description.isEmpty()) sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
