@@ -13,7 +13,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -48,9 +47,9 @@ public class Searcher {
 
     // PRF flags
     private static final boolean USE_PRF = true;
-    private static final int PRF_FEEDBACK_DOCS = 30;   // try 30, then 50
-    private static final int PRF_EXPANSION_TERMS = 20; // try 20, then 30
-    private static final float PRF_BOOST = 0.3f;       // try 0.5, then 0.3–0.4
+    private static final int PRF_FEEDBACK_DOCS = 30;   // 30-50
+    private static final int PRF_EXPANSION_TERMS = 20; // 20-30
+    private static final float PRF_BOOST = 0.3f;       // 0.3-0.5
 
 
     private static class Topic {
@@ -74,7 +73,7 @@ public class Searcher {
 
             searcher.setSimilarity(bm25);
 
-            Analyzer analyzer = new EnglishAnalyzer();
+            Analyzer analyzer = new CustomAnalyzer();
             QueryParser parser = new QueryParser("text", analyzer);
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
@@ -199,13 +198,15 @@ public class Searcher {
         }
     
         if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^3 ");
+            String escDesc = QueryParserBase.escape(topic.description);
+            sb.append("text:(").append(escDesc).append(")^3 ");
+    
         }
     
         if (USE_NARRATIVE) {
             String posNarr = extractPositiveNarrative(topic.narrative);
             if (!posNarr.isEmpty()) {
-                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2 ");
+                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^1 ");
             }
         }
         return sb.toString().trim();
@@ -248,18 +249,19 @@ public class Searcher {
     }
     
     
-
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
         DirectoryReader reader, int topTerms, float boost) throws IOException {
 
-        Map<String,Integer> tf = new HashMap<>();
+        Map<String, Float> scores = new HashMap<>();
         TermVectors tvReader = reader.termVectors();
 
         java.util.Set<String> originalTerms = new java.util.HashSet<>();
         collectTerms(baseQuery, "text", originalTerms);
+
         int maxDoc = reader.maxDoc();
 
-        for (int i = 0; i < Math.min(feedbackDocs.scoreDocs.length, PRF_FEEDBACK_DOCS); i++) {
+        int limit = Math.min(feedbackDocs.scoreDocs.length, PRF_FEEDBACK_DOCS);
+        for (int i = 0; i < limit; i++) {
             int docId = feedbackDocs.scoreDocs[i].doc;
             Fields vectors = tvReader.get(docId);
             if (vectors == null) continue;
@@ -278,27 +280,28 @@ public class Searcher {
                 if (df < 3) continue;
                 if (df > 0.3 * maxDoc) continue;
 
-                tf.put(term, tf.getOrDefault(term, 0) + 1);
+                float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
+
+                float old = scores.getOrDefault(term, 0f);
+                scores.put(term, old + idf);
             }
         }
 
-        List<Map.Entry<String,Integer>> sorted = new ArrayList<>(tf.entrySet());
-        sorted.sort((a,b) -> Integer.compare(b.getValue(), a.getValue()));
+        List<Map.Entry<String, Float>> sorted = new ArrayList<>(scores.entrySet());
+        sorted.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
 
         BooleanQuery.Builder expanded = new BooleanQuery.Builder();
         expanded.add(baseQuery, BooleanClause.Occur.SHOULD);
 
         int added = 0;
-        for (Map.Entry<String,Integer> e : sorted) {
+        for (Map.Entry<String, Float> e : sorted) {
             if (added >= topTerms) break;
             TermQuery tq = new TermQuery(new Term("text", e.getKey()));
             expanded.add(new BoostQuery(tq, boost), BooleanClause.Occur.SHOULD);
             added++;
         }
-
         return expanded.build();
     }
-
 
     private void collectTerms(Query q, String field, java.util.Set<String> out) {
         if (q instanceof BooleanQuery) {

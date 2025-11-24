@@ -10,7 +10,6 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
-
 import static org.cs7is3.constants.Constants.NEWS_STOP_WORDS;
 
 
@@ -36,20 +35,18 @@ public class CustomAnalyzer extends Analyzer {
         StandardTokenizer tokenizer = new StandardTokenizer();
 
         TokenStream stream = tokenizer;
-        // I changed the order of some filters for better effectiveness
-        // convert to lowercase first 
+    
         stream = new LowerCaseFilter(stream);
-       
         stream = new ASCIIFoldingFilter(stream);
-        
         stream = new EnglishPossessiveFilter(stream);
+
+        if ("persons".equals(field)) {
+            stream = new LengthFilter(stream, MIN_TOKEN_LENGTH, MAX_TOKEN_LENGTH);
+            return new TokenStreamComponents(tokenizer, stream);
+        }
         
         stream = new StopFilter(stream, STOP_WORDS);
-        
-        // filter out tokens that are too short or too long
         stream = new LengthFilter(stream, MIN_TOKEN_LENGTH, MAX_TOKEN_LENGTH);
-        
-        // apply Porter stemming (running -> run, countries -> countri)
         stream = new PorterStemFilter(stream);
 
         return new TokenStreamComponents(tokenizer, stream);

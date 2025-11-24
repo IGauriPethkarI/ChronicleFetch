@@ -18,7 +18,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -51,8 +50,8 @@ public class Indexer {
     public void buildIndex(Path docsPath, Path indexPath) throws IOException {
         try {
             // Analyzer
-            IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
-            //IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
+            //IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
+            IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
             cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
             cfg.setRAMBufferSizeMB(256.0);
             cfg.setUseCompoundFile(false);
@@ -195,13 +194,16 @@ public class Indexer {
         }
         seenHashes.add(contentHash);
 
+        String combinedText = (safe(headline) + " " + safe(summary) + " " + safe(text)).trim();
+
         doc.add(new StringField("docno", safe(docno), Field.Store.YES));
         doc.add(new StringField("source", safe(source), Field.Store.YES));
-        doc.add(new Field("text", safe(text), TV_FIELD_TYPE));
-        doc.add(new Field("headline", safe(headline), TV_FIELD_TYPE));
-        doc.add(new TextField("persons",safe(byline),Field.Store.YES));
-        doc.add(new Field("summary", safe(summary), TV_FIELD_TYPE));
+        doc.add(new Field("text", combinedText, TV_FIELD_TYPE));   
+        doc.add(new StoredField("headline", safe(headline)));
+        doc.add(new StoredField("summary", safe(summary)));
+        doc.add(new TextField("persons", safe(byline), Field.Store.YES));
         doc.add(new StoredField("headline_raw", safe(headline)));
+        doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
 
