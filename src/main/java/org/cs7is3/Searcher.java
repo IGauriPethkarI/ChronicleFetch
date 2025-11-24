@@ -15,7 +15,11 @@ import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermVectors;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
@@ -27,11 +31,10 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
-import org.apache.lucene.search.similarities.MultiSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.cs7is3.analyzer.CustomAnalyzer;
 
 public class Searcher {
@@ -53,18 +56,18 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            Similarity bm25 = new BM25Similarity(1.2f, 0.75f);
+            Similarity bm25 = new BM25Similarity(1.5f, 0.4f);
 
             searcher.setSimilarity(bm25);
 
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
             Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 5.0f);
-            boosts.put("summary", 4.0f);
-            boosts.put("text", 2.5f);
-            boosts.put("metadata_raw", 1.5f);
-            boosts.put("persons", 1.0f);
+            boosts.put("headline", 3.0f);
+            boosts.put("summary", 2.0f);
+            boosts.put("text", 1.0f);
+            boosts.put("metadata_raw", 0.8f);
+            boosts.put("persons", 1.5f);
 
 
             MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer, boosts);
@@ -102,7 +105,13 @@ public class Searcher {
 
                 Query boostedQuery = bqBuilder.build();
 
-                TopDocs topDocs = searcher.search(boostedQuery, numDocs);
+                // get feedback docs
+                TopDocs feedback = searcher.search(boostedQuery, Math.max(numDocs, 20));
+                // expand query with PRF
+                Query prfQuery = expandWithPRF(boostedQuery, feedback, reader, 10, 0.5f);
+                // final search
+                TopDocs topDocs = searcher.search(prfQuery, numDocs);
+
                 ScoreDoc[] hits = topDocs.scoreDocs;
 
                 for (int i = 0; i < hits.length; i++) {
@@ -220,5 +229,43 @@ public class Searcher {
             sb.append(trimmed);
         }
         return sb.toString();
+    }
+
+    private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
+                            DirectoryReader reader, int topTerms, float boost) throws IOException {
+        Map<String,Integer> tf = new HashMap<>();
+
+        TermVectors tvReader = reader.termVectors();
+
+        for (int i = 0; i < Math.min(feedbackDocs.scoreDocs.length, 20); i++) {
+            int docId = feedbackDocs.scoreDocs[i].doc;
+            Fields vectors = tvReader.get(docId);
+            if (vectors == null) continue;
+
+            Terms terms = vectors.terms("text");
+            if (terms == null) continue;
+
+            TermsEnum te = terms.iterator();
+            BytesRef ref;
+            while ((ref = te.next()) != null) {
+                String term = ref.utf8ToString();
+                tf.put(term, tf.getOrDefault(term, 0) + 1);
+            }
+        }
+
+        List<Map.Entry<String,Integer>> sorted = new ArrayList<>(tf.entrySet());
+        sorted.sort((a,b) -> Integer.compare(b.getValue(), a.getValue()));
+
+        BooleanQuery.Builder expanded = new BooleanQuery.Builder();
+        expanded.add(baseQuery, BooleanClause.Occur.SHOULD);
+
+        int added = 0;
+        for (Map.Entry<String,Integer> e : sorted) {
+            if (added >= topTerms) break;
+            TermQuery tq = new TermQuery(new Term("text", e.getKey()));
+            expanded.add(new BoostQuery(tq, boost), BooleanClause.Occur.SHOULD);
+            added++;
+        }
+        return expanded.build();
     }
 }
