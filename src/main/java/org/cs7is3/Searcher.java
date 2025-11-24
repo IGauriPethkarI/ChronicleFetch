@@ -63,10 +63,10 @@ public class Searcher {
             Analyzer analyzer = new CustomAnalyzer();
             String[] fields = {"text", "headline","summary","persons","metadata_raw"};
             Map<String, Float> boosts = new HashMap<>();
-            boosts.put("headline", 1.0f);
-            boosts.put("summary", 1.0f);
-            boosts.put("text", 1.0f);
-            boosts.put("metadata_raw", 1.0f);
+            boosts.put("headline", 5.0f);
+            boosts.put("summary", 4.0f);
+            boosts.put("text", 2.5f);
+            boosts.put("metadata_raw", 1.5f);
             boosts.put("persons", 1.0f);
 
 
@@ -197,16 +197,29 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         // Boost title higher
-        if (!topic.title.isEmpty()) sb.append("title:(").append(QueryParserBase.escape(topic.title)).append(")^8");
+        if (!topic.title.isEmpty()) {
+            String[] splitTitle = topic.title.split(" ");
+            for(String word : splitTitle) {
+                sb.append("title:(").append(QueryParserBase.escape(word)).append(")^8");
+            }
+        }
 
         // Boost description moderately
-        if (!topic.description.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^6");
+        if (!topic.description.isEmpty()) {
+            String[] splitDesc = topic.description.split(" ");
+            for(String word : splitDesc) {
+                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^6");
+            }
+        }
 
         // Boost narrative lightly
         String posNarr = extractPositiveNarrative(topic.narrative);
-        if (!posNarr.isEmpty())
-            sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^2.5");
+        if (!posNarr.isEmpty()) {
+            String[] splitNarr = posNarr.split(" ");
+            for(String word : splitNarr) {
+                sb.append("text:(").append(QueryParserBase.escape(word)).append(")^2.5");
+            }
+        }
 
         return sb.toString().trim();
     }
