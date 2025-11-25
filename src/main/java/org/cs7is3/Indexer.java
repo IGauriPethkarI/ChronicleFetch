@@ -20,11 +20,13 @@ import java.util.zip.GZIPOutputStream;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.FSDirectory;
 import org.cs7is3.analyzer.CustomAnalyzer;
@@ -136,7 +138,7 @@ public class Indexer {
                 }
 
                 luceneDoc.removeField("text");
-                luceneDoc.add(new TextField("text", fallback.trim(), Field.Store.YES));
+                luceneDoc.add(new Field("text", fallback.trim(), TV_FIELD_TYPE));
             }
 
             writer.addDocument(luceneDoc);
@@ -192,13 +194,16 @@ public class Indexer {
         }
         seenHashes.add(contentHash);
 
+        String combinedText = (safe(headline) + " " + safe(summary) + " " + safe(text)).trim();
+
         doc.add(new StringField("docno", safe(docno), Field.Store.YES));
         doc.add(new StringField("source", safe(source), Field.Store.YES));
-        doc.add(new TextField("text", safe(text), Field.Store.YES));
-        doc.add(new TextField("headline", safe(headline), Field.Store.YES));
-        doc.add(new TextField("persons",safe(byline),Field.Store.YES));
-        doc.add(new TextField("summary",safe(summary),Field.Store.YES));
+        doc.add(new Field("text", combinedText, TV_FIELD_TYPE));   
+        doc.add(new StoredField("headline", safe(headline)));
+        doc.add(new StoredField("summary", safe(summary)));
+        doc.add(new TextField("persons", safe(byline), Field.Store.YES));
         doc.add(new StoredField("headline_raw", safe(headline)));
+        doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
 
@@ -329,5 +334,17 @@ public class Indexer {
 
         return "unknown";
     }
-}
 
+    private static final FieldType TV_FIELD_TYPE;
+    static {
+        FieldType ft = new FieldType();
+        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        ft.setStored(true);
+        ft.setTokenized(true);
+        ft.setStoreTermVectors(true);
+        ft.setStoreTermVectorPositions(true);
+        ft.setStoreTermVectorOffsets(true);
+        ft.freeze(); 
+        TV_FIELD_TYPE = ft;
+    }
+}
