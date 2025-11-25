@@ -40,7 +40,6 @@ import org.cs7is3.analyzer.CustomAnalyzer;
 
 public class Searcher {
 
-    // Ablation flags
     private static final boolean USE_TITLE = true;
     private static final boolean USE_DESCRIPTION = true;
     private static final boolean USE_NARRATIVE = true;
@@ -50,7 +49,6 @@ public class Searcher {
     private static final int PRF_FEEDBACK_DOCS = 30;   // 30-50
     private static final int PRF_EXPANSION_TERMS = 20; // 20-30
     private static final float PRF_BOOST = 0.3f;       // 0.3-0.5
-
 
     private static class Topic {
         String id;
@@ -69,7 +67,7 @@ public class Searcher {
              BufferedWriter writer = Files.newBufferedWriter(outputRun, StandardCharsets.UTF_8)) {
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            Similarity bm25 = new BM25Similarity(1.2f, 0.75f);
+            Similarity bm25 = new BM25Similarity(0.9f, 0.8f);
 
             searcher.setSimilarity(bm25);
 
@@ -186,7 +184,6 @@ public class Searcher {
                 }
             }
         }
-
         return topics;
     }
 
@@ -198,9 +195,7 @@ public class Searcher {
         }
     
         if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            String escDesc = QueryParserBase.escape(topic.description);
-            sb.append("text:(").append(escDesc).append(")^3 ");
-    
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^3 ");
         }
     
         if (USE_NARRATIVE) {
@@ -247,7 +242,6 @@ public class Searcher {
         }
         return sb.toString();
     }
-    
     
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
         DirectoryReader reader, int topTerms, float boost) throws IOException {
