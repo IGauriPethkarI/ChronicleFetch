@@ -46,9 +46,9 @@ public class Searcher {
 
     // PRF flags
     private static final boolean USE_PRF = true;
-    private static final int PRF_FEEDBACK_DOCS = 30;   // 30-50
-    private static final int PRF_EXPANSION_TERMS = 20; // 20-30
-    private static final float PRF_BOOST = 0.3f;       // 0.3-0.5
+    private static final int PRF_FEEDBACK_DOCS = 40;   // 30-50
+    private static final int PRF_EXPANSION_TERMS = 25; // 20-30
+    private static final float PRF_BOOST = 0.4f;       // 0.3-0.5
 
     private static class Topic {
         String id;
