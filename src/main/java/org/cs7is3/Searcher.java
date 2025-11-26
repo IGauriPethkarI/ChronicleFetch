@@ -191,17 +191,17 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         if (USE_TITLE && !topic.title.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^6 ");
+            sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^2 ");
         }
     
         if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^3 ");
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^1 ");
         }
     
         if (USE_NARRATIVE) {
             String posNarr = extractPositiveNarrative(topic.narrative);
             if (!posNarr.isEmpty()) {
-                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^1 ");
+                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^0.5 ");
             }
         }
         return sb.toString().trim();
@@ -272,7 +272,7 @@ public class Searcher {
 
                 int df = reader.docFreq(new Term("text", term));
                 if (df < 3) continue;
-                if (df > 0.3 * maxDoc) continue;
+                if (df > 0.2 * maxDoc) continue;
 
                 float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
 
