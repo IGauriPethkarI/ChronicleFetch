@@ -339,11 +339,11 @@ public class Indexer {
     static {
         FieldType ft = new FieldType();
         ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        ft.setStored(true);
+        ft.setStored(false);
         ft.setTokenized(true);
         ft.setStoreTermVectors(true);
         ft.setStoreTermVectorPositions(true);
-        ft.setStoreTermVectorOffsets(true);
+        ft.setStoreTermVectorOffsets(false);
         ft.freeze(); 
         TV_FIELD_TYPE = ft;
     }

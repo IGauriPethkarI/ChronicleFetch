@@ -64,7 +64,7 @@ Contributions to Research Paper:
 
 All members: will each find and summarise two SIGIR research papers by next meeting. 
 
-
+-----------------------------------------------------------------------------------------------------------
 Meeting 3
 Date: 11th November 2025
 Meeting Type: Hybrid (3:00pm) — all members present either in-person in South Leinster Street Lab or online
@@ -108,7 +108,7 @@ Plan Before 18/11:
    - Upload App.java. 
    - Test different analyzers.
 
-
+-----------------------------------------------------------------------------------------------------------
 Meeting 4
 Date: 18th November 2025
 Meeting Type: Hybrid (1:00pm) — all members present
@@ -128,3 +128,70 @@ periodic commits for memory management, and optimised the CustomAnalyzer. Indexe
 
 -> Everyone:
 Check material from today’s lecture (topic models, query likelihood, smoothing).
+
+-----------------------------------------------------------------------------------------------------------
+Meeting 5
+Date: 26th November 2025
+Meeting Type: In-person (1:00pm, South Leinster Street Meeting Room)
+Participants: All members present
+
+------------------------------------------------------------
+Participants & Updates Since Last Meeting
+------------------------------------------------------------
+
+Rohn:
+- Experimented with query and field boosts.
+- Improved word separation logic.
+- Updated and refined the buildQueryText function.
+
+Gauri:
+- Added date normalisation to the Indexer.
+- Expanded and refined stopword lists and constants.
+- Tested a multi-similarity approach in the Searcher.
+- Contributed improvements to the buildQueryText method.
+
+Martha:
+- Added pseudo-relevance feedback to the Searcher.
+- Added term vectors to the Indexer to support pseudo-relevance feedback.
+- Tuned query weighting and improved similarity selection.
+- Refactored the text field to include headline and summary.
+- Replaced MultiFieldQueryParser with classic QueryParser.
+- Trialled KStem in the CustomAnalyzer (no performance gain).
+
+Keshwith:
+- Configured GitHub Secrets and updated CI workflow YAML for new directory naming.
+- Cleaned and reorganised the repository structure.
+
+Karolina:
+- Improved the CustomAnalyzer by removing the ShingleFilter to avoid index bloat and improve precision.
+- Continued work on the Indexer; will now shift focus to the Searcher.
+
+------------------------------------------------------------
+Summary of Meeting
+------------------------------------------------------------
+- Each member provided progress updates on their implementation work.
+- Discussed issues experienced during indexing and search performance testing.
+- Identified next steps for code improvements and research paper development.
+- Assigned responsibilities and confirmed deadlines for final development and write-up phases.
+
+------------------------------------------------------------
+Decisions and Action Items
+------------------------------------------------------------
+
+Code Tasks (Deadline: 03/12):
+- Gauri: Experiment with CustomAnalyzer enhancements; test handling of news-specific abbreviations (e.g., "U.S." → "United States").
+- Keshwith and Rohn: Improve query generation pipeline (weighting, structure, term handling).
+- Martha and Karolina: Refine pseudo-relevance feedback and evaluate alternative expansion strategies.
+- Everyone: Implement at least one new code experiment informed by research readings.
+
+Research Paper Responsibilities (Deadline: 03/12):
+- Rohn: Abstract, Introduction, Background.
+- Gauri: System Design – Indexing Approach.
+- Martha: System Design – Query Construction and Retrieval Models.
+- Keshwith: Evaluation – Experiments and Results.
+- Karolina: Discussion, Limitations, Conclusion.
+- Everyone: Add research paper summaries and references for the bibliography.
+
+Other Tasks:
+- Martha: Update project-journal.txt with Meeting 5 entry.
+- Keshwith: Prepare updated README with full run instructions.
