@@ -7,10 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
@@ -196,40 +199,63 @@ public class Searcher {
     }
 
     private String extractPositiveNarrative(String narrative) {
-        if (narrative == null) return "";
-        narrative = narrative.trim();
-        if (narrative.isEmpty()) return "";
-        narrative = narrative.replaceAll("\\s+", " ");
-    
-        String[] sentences = narrative.split("(?<=[.!?])\\s+");
-        StringBuilder sb = new StringBuilder();
-    
-        for (String sentence : sentences) {
-            String s = sentence.trim();
-            if (s.isEmpty()) continue;
-    
-            String[] clauseLevel1 = s.split("[;:]");
-            for (String clause : clauseLevel1) {
-                String c1 = clause.trim();
-                if (c1.isEmpty()) continue;
-    
-                String[] subClauses = c1.split(",");
-                for (String sub : subClauses) {
-                    String c = sub.trim();
-                    if (c.isEmpty()) continue;
-    
-                    String lower = c.toLowerCase(Locale.ROOT);
-                    if (lower.contains("not relevant") || lower.contains("irrelevant")) {
-                        continue;
+    if (narrative == null) return "";
+    narrative = narrative.trim();
+    if (narrative.isEmpty()) return "";
+    narrative = narrative.replaceAll("\\s+", " ");
+
+    Set<String> fillerWords = new HashSet<>(Arrays.asList(
+        "document", "documents", "information", "data",
+         "report", "discuss", "relevant", "irrelevant", "not relevant", "focus",
+         "mention", "pertain", "describe", "contain", "provide", "cite", "include",
+         "indicate", "identify", "name", "concrete"
+
+    ));
+
+    String[] sentences = narrative.split("(?<=[.!?])\\s+");
+    StringBuilder sb = new StringBuilder();
+
+    for (String sentence : sentences) {
+        String s = sentence.trim();
+        if (s.isEmpty()) continue;
+
+        String[] clauseLevel1 = s.split("[;:]");
+        for (String clause : clauseLevel1) {
+            String c1 = clause.trim();
+            if (c1.isEmpty()) continue;
+
+            String[] subClauses = c1.split(",");
+            for (String sub : subClauses) {
+                String c = sub.trim();
+                if (c.isEmpty()) continue;
+
+                String lower = c.toLowerCase(Locale.ROOT);
+
+                if (lower.contains("not relevant") || lower.contains("irrelevant")) {
+                    continue;
+                }
+
+                String[] tokens = c.split("\\s+");
+                StringBuilder filtered = new StringBuilder();
+                for (String token : tokens) {
+                    String t = token.toLowerCase(Locale.ROOT);
+                    if (!fillerWords.contains(t)) {
+                        if (filtered.length() > 0) filtered.append(' ');
+                        filtered.append(token);
                     }
-    
+                }
+
+                String cleaned = filtered.toString().trim();
+                if (!cleaned.isEmpty()) {
                     if (sb.length() > 0) sb.append(' ');
-                    sb.append(c);
+                    sb.append(cleaned);
                 }
             }
         }
-        return sb.toString();
     }
+    return sb.toString();
+}
+
     
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
         DirectoryReader reader, int topTerms, float boost) throws IOException {
