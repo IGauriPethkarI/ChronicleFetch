@@ -21,6 +21,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
@@ -58,7 +59,7 @@ public class Searcher {
     }
 
     public void searchTopics(Path indexPath, Path topicsPath,
-                             Path outputRun, int numDocs) throws IOException {
+                             Path outputRun, int numDocs) throws IOException, ParseException {
 
         List<Topic> topics = parseTopics(topicsPath);
 
@@ -78,35 +79,42 @@ public class Searcher {
             String runTag = "cs7is3";
 
             for (Topic topic : topics) {
-                String queryText = buildQueryText(topic);
-
-                Query baseQuery;
-                try {
-                    baseQuery = parser.parse(queryText);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse query for topic " + topic.id, e);
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    
+                if (USE_TITLE && !topic.title.isEmpty()) {
+                    Query qTitle = parser.parse(QueryParserBase.escape(topic.title));
+                    builder.add(new BoostQuery(qTitle, 2f), BooleanClause.Occur.SHOULD);
                 }
-
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);         
-
-                Query boostedQuery = bqBuilder.build();
-
-                TopDocs feedback = searcher.search(boostedQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
-
-                Query finalQuery = boostedQuery;
+    
+                if (USE_DESCRIPTION && !topic.description.isEmpty()) {
+                    Query qDesc = parser.parse(QueryParserBase.escape(topic.description));
+                    builder.add(new BoostQuery(qDesc, 1f), BooleanClause.Occur.SHOULD);
+                }
+    
+                if (USE_NARRATIVE && !topic.narrative.isEmpty()) {
+                    String posNarr = extractPositiveNarrative(topic.narrative);
+                    if (!posNarr.isEmpty()) {
+                        Query qNarr =  parser.parse(QueryParserBase.escape(posNarr));
+                        builder.add(new BoostQuery(qNarr, 0.5f), BooleanClause.Occur.SHOULD);
+                    }
+                }
+    
+                Query baseQuery = builder.build();
+                TopDocs feedback = searcher.search(baseQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
+    
+                Query finalQuery = baseQuery;
                 if (USE_PRF) {
-                    finalQuery = expandWithPRF(boostedQuery, feedback, reader,
+                    finalQuery = expandWithPRF(baseQuery, feedback, reader,
                                                PRF_EXPANSION_TERMS, PRF_BOOST);
                 }
+    
                 TopDocs topDocs = searcher.search(finalQuery, numDocs);
-
                 ScoreDoc[] hits = topDocs.scoreDocs;
-
+    
                 for (int i = 0; i < hits.length; i++) {
                     Document doc = searcher.storedFields().document(hits[i].doc);
-                    String docno = doc.get("docno");
-
+                    String docno = doc.get("docno").trim();
+    
                     String line = String.format(
                             Locale.ROOT,
                             "%s Q0 %s %d %f %s",
@@ -185,26 +193,6 @@ public class Searcher {
             }
         }
         return topics;
-    }
-
-    private String buildQueryText(Topic topic) {
-        StringBuilder sb = new StringBuilder();
-
-        if (USE_TITLE && !topic.title.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^2 ");
-        }
-    
-        if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^1 ");
-        }
-    
-        if (USE_NARRATIVE) {
-            String posNarr = extractPositiveNarrative(topic.narrative);
-            if (!posNarr.isEmpty()) {
-                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^0.5 ");
-            }
-        }
-        return sb.toString().trim();
     }
 
     private String extractPositiveNarrative(String narrative) {
