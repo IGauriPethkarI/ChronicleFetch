@@ -48,11 +48,10 @@ public class Searcher {
     private static final boolean USE_DESCRIPTION = true;
     private static final boolean USE_NARRATIVE = true;
 
-    // PRF flags
     private static final boolean USE_PRF = true;
-    private static final int PRF_FEEDBACK_DOCS = 40;   // 30-50
-    private static final int PRF_EXPANSION_TERMS = 25; // 20-30
-    private static final float PRF_BOOST = 0.4f;       // 0.3-0.5
+    private static final int PRF_FEEDBACK_DOCS = 40;   
+    private static final int PRF_EXPANSION_TERMS = 25; 
+    private static final float PRF_BOOST = 0.4f;       
 
     private static final String[] SEARCH_FIELDS = {"text", "headline", "summary"};
     private static final Map<String, Float> FIELD_BOOSTS = Map.of(
@@ -90,7 +89,6 @@ public class Searcher {
             );
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
-
             String runTag = "cs7is3";
 
             for (Topic topic : topics) {
@@ -125,7 +123,7 @@ public class Searcher {
                 TopDocs feedback = searcher.search(baseQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
     
                 Query finalQuery = baseQuery;
-                if (USE_PRF) {
+                if (USE_PRF && feedback.scoreDocs.length >= 3) {
                     finalQuery = expandWithPRF(baseQuery, feedback, reader,
                                                PRF_EXPANSION_TERMS, PRF_BOOST);
                 }
@@ -218,64 +216,63 @@ public class Searcher {
     }
 
     private String extractPositiveNarrative(String narrative) {
-    if (narrative == null) return "";
-    narrative = narrative.trim();
-    if (narrative.isEmpty()) return "";
-    narrative = narrative.replaceAll("\\s+", " ");
+        if (narrative == null) return "";
+        narrative = narrative.trim();
+        if (narrative.isEmpty()) return "";
+        narrative = narrative.replaceAll("\\s+", " ");
 
-    Set<String> fillerWords = new HashSet<>(Arrays.asList(
-        "document", "documents", "information", "data",
-         "report", "discuss", "relevant", "irrelevant", "not relevant", "focus",
-         "mention", "pertain", "describe", "contain", "provide", "cite", "include",
-         "indicate", "identify", "name", "concrete"
+        Set<String> fillerWords = new HashSet<>(Arrays.asList(
+            "document", "documents", "information", "data",
+            "report", "discuss", "relevant", "irrelevant", "not relevant", "focus",
+            "mention", "pertain", "describe", "contain", "provide", "cite", "include",
+            "indicate", "identify", "name", "concrete"
 
-    ));
+        ));
 
-    String[] sentences = narrative.split("(?<=[.!?])\\s+");
-    StringBuilder sb = new StringBuilder();
+        String[] sentences = narrative.split("(?<=[.!?])\\s+");
+        StringBuilder sb = new StringBuilder();
 
-    for (String sentence : sentences) {
-        String s = sentence.trim();
-        if (s.isEmpty()) continue;
+        for (String sentence : sentences) {
+            String s = sentence.trim();
+            if (s.isEmpty()) continue;
 
-        String[] clauseLevel1 = s.split("[;:]");
-        for (String clause : clauseLevel1) {
-            String c1 = clause.trim();
-            if (c1.isEmpty()) continue;
+            String[] clauseLevel1 = s.split("[;:]");
+            for (String clause : clauseLevel1) {
+                String c1 = clause.trim();
+                if (c1.isEmpty()) continue;
 
-            String[] subClauses = c1.split(",");
-            for (String sub : subClauses) {
-                String c = sub.trim();
-                if (c.isEmpty()) continue;
+                String[] subClauses = c1.split(",");
+                for (String sub : subClauses) {
+                    String c = sub.trim();
+                    if (c.isEmpty()) continue;
 
-                String lower = c.toLowerCase(Locale.ROOT);
+                    String lower = c.toLowerCase(Locale.ROOT);
 
-                if (lower.contains("not relevant") || lower.contains("irrelevant")) {
-                    continue;
-                }
-
-                String[] tokens = c.split("\\s+");
-                StringBuilder filtered = new StringBuilder();
-                for (String token : tokens) {
-                    String t = token.toLowerCase(Locale.ROOT);
-                    if (!fillerWords.contains(t)) {
-                        if (filtered.length() > 0) filtered.append(' ');
-                        filtered.append(token);
+                    if (lower.contains("not relevant") || lower.contains("irrelevant")) {
+                        continue;
                     }
-                }
 
-                String cleaned = filtered.toString().trim();
-                if (!cleaned.isEmpty()) {
-                    if (sb.length() > 0) sb.append(' ');
-                    sb.append(cleaned);
+                    String[] tokens = c.split("\\s+");
+                    StringBuilder filtered = new StringBuilder();
+                    for (String token : tokens) {
+                        String t = token.toLowerCase(Locale.ROOT);
+                        if (!fillerWords.contains(t)) {
+                            if (filtered.length() > 0) filtered.append(' ');
+                            filtered.append(token);
+                        }
+                    }
+
+                    String cleaned = filtered.toString().trim();
+                    if (!cleaned.isEmpty()) {
+                        if (sb.length() > 0) sb.append(' ');
+                        sb.append(cleaned);
+                    }
                 }
             }
         }
+        return sb.toString();
     }
-    return sb.toString();
-}
 
-    
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
         DirectoryReader reader, int topTerms, float boost) throws IOException {
 
@@ -351,5 +348,5 @@ public class Searcher {
         } else if (q instanceof BoostQuery) {
             collectTerms(((BoostQuery) q).getQuery(), field, out);
         }
-    }    
+    }
 }

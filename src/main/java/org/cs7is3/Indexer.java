@@ -49,8 +49,6 @@ public class Indexer {
 
     public void buildIndex(Path docsPath, Path indexPath) throws IOException {
         try {
-            // Analyzer
-            //IndexWriterConfig cfg = new IndexWriterConfig(new EnglishAnalyzer());
             IndexWriterConfig cfg = new IndexWriterConfig(new CustomAnalyzer());
             cfg.setSimilarity(new BM25Similarity(1.2f, 0.75f));
             cfg.setRAMBufferSizeMB(256.0);
@@ -136,7 +134,6 @@ public class Indexer {
                     skippedEmptyDocs++;
                     continue;
                 }
-
                 luceneDoc.removeField("text");
                 luceneDoc.add(new Field("text", fallback.trim(), TV_FIELD_TYPE));
             }
@@ -154,7 +151,6 @@ public class Indexer {
                 System.out.printf("  - %d docs indexed from %s%n", docsIndexedInFile, file.getName());
             }
         }
-
         if (docsIndexedInFile > 0) {
             System.out.printf("✓ Indexed %d documents from %s (Total: %d)%n",
                     docsIndexedInFile, file.getName(), this.totalDocuments);
@@ -183,7 +179,6 @@ public class Indexer {
         String summary = pick(raw,"SUMMARY");
         String source = raw.getOrDefault("SOURCE", guessSourceFromRaw(raw));
 
-        // I hash both headline and text to catch duplicates better
         int contentHash = Objects.hash(
                 safe(headline).toLowerCase(),
                 safe(text).toLowerCase().substring(0, Math.min(safe(text).length(), 500))
@@ -203,7 +198,6 @@ public class Indexer {
         doc.add(new StoredField("summary", safe(summary)));
         doc.add(new TextField("persons", safe(byline), Field.Store.YES));
         doc.add(new StoredField("headline_raw", safe(headline)));
-        doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new StringField("date", safe(normalizeDate(date)), Field.Store.YES));
         doc.add(new TextField("section", safe(section), Field.Store.YES));
 
@@ -233,16 +227,12 @@ public class Indexer {
                 gzipStream.write(meta.getBytes("UTF-8"));
                 gzipStream.close();
                 byte[] compressed = byteStream.toByteArray();
-
-                // Encode as Base64 so it can be stored as text
                 meta = Base64.getEncoder().encodeToString(compressed);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
-
         doc.add(new TextField("metadata_raw", meta, Field.Store.YES));
-
         return doc;
     }
 
@@ -296,7 +286,6 @@ public class Indexer {
                 return "";
             }
         }
-
         return "";
     }
 
