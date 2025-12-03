@@ -54,6 +54,13 @@ public class Searcher {
     private static final int PRF_EXPANSION_TERMS = 25; // 20-30
     private static final float PRF_BOOST = 0.4f;       // 0.3-0.5
 
+    private static final String[] SEARCH_FIELDS = {"text", "headline", "summary"};
+    private static final Map<String, Float> FIELD_BOOSTS = Map.of(
+        "text", 1.0f,
+        "headline", 1.8f,
+        "summary", 1.8f
+    );
+
     private static class Topic {
         String id;
         String title = "";
@@ -76,8 +83,13 @@ public class Searcher {
             searcher.setSimilarity(bm25);
 
             Analyzer analyzer = new CustomAnalyzer();
-            QueryParser parser = new QueryParser("text", analyzer);
+            MultiFieldQueryParser parser = new MultiFieldQueryParser(
+                SEARCH_FIELDS, 
+                analyzer, 
+                FIELD_BOOSTS
+            );
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
+
 
             String runTag = "cs7is3";
 
@@ -101,7 +113,14 @@ public class Searcher {
                         builder.add(new BoostQuery(qNarr, 0.5f), BooleanClause.Occur.SHOULD);
                     }
                 }
-    
+
+                QueryParser sourceParser = new QueryParser("source", analyzer);
+                Query sourceFt = sourceParser.parse("ft");
+                builder.add(new BoostQuery(sourceFt, 1.2f), BooleanClause.Occur.SHOULD);
+
+                Query sourceLatimes = sourceParser.parse("latimes");
+                builder.add(new BoostQuery(sourceLatimes, 1.1f), BooleanClause.Occur.SHOULD);
+                    
                 Query baseQuery = builder.build();
                 TopDocs feedback = searcher.search(baseQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
     
@@ -264,7 +283,9 @@ public class Searcher {
         TermVectors tvReader = reader.termVectors();
 
         java.util.Set<String> originalTerms = new java.util.HashSet<>();
-        collectTerms(baseQuery, "text", originalTerms);
+        for (String field : SEARCH_FIELDS) {
+            collectTerms(baseQuery, field, originalTerms);
+        }
 
         int maxDoc = reader.maxDoc();
 
@@ -274,24 +295,29 @@ public class Searcher {
             Fields vectors = tvReader.get(docId);
             if (vectors == null) continue;
 
-            Terms terms = vectors.terms("text");
-            if (terms == null) continue;
+            for (String field : SEARCH_FIELDS) {
+                Terms terms = vectors.terms(field);
+                if (terms == null) continue;
 
-            TermsEnum te = terms.iterator();
-            BytesRef ref;
-            while ((ref = te.next()) != null) {
-                String term = ref.utf8ToString();
-                if (term.length() < 4) continue;
-                if (originalTerms.contains(term)) continue;
+                TermsEnum te = terms.iterator();
+                BytesRef ref;
+                while ((ref = te.next()) != null) {
+                    String term = ref.utf8ToString();
+                    if (term.length() < 4) continue;
+                    if (originalTerms.contains(term)) continue;
 
-                int df = reader.docFreq(new Term("text", term));
-                if (df < 3) continue;
-                if (df > 0.2 * maxDoc) continue;
+                    int df = reader.docFreq(new Term(field, term));
+                    if (df < 3) continue;
+                    if (df > 0.2 * maxDoc) continue;
 
-                float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
+                    float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
+                    
+                    float fieldWeight = FIELD_BOOSTS.getOrDefault(field, 1.0f);
+                    float weightedScore = idf * fieldWeight;
 
-                float old = scores.getOrDefault(term, 0f);
-                scores.put(term, old + idf);
+                    float old = scores.getOrDefault(term, 0f);
+                    scores.put(term, old + weightedScore);
+                }
             }
         }
 
@@ -304,6 +330,7 @@ public class Searcher {
         int added = 0;
         for (Map.Entry<String, Float> e : sorted) {
             if (added >= topTerms) break;
+            
             TermQuery tq = new TermQuery(new Term("text", e.getKey()));
             expanded.add(new BoostQuery(tq, boost), BooleanClause.Occur.SHOULD);
             added++;
