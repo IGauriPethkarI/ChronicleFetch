@@ -12,22 +12,11 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import static org.cs7is3.constants.Constants.NEWS_STOP_WORDS;
 
-
-/**
- * 1. StandardTokenizer - tokenizes text
- * 2. LowerCaseFilter - normalizes to lowercase
- * 3. ASCIIFoldingFilter - converts accented characters (e.g., café -> cafe)
- * 4. EnglishPossessiveFilter - removes possessives ('s)
- * 5. StopFilter - removes common English stopwords
- * 6. LengthFilter - removes very short tokens (< 2 chars)
- * 7. PorterStemFilter - applies Porter stemming algorithm
- * I removed ShingleFilter so we avoid index bloat and improve precision
- */
 public class CustomAnalyzer extends Analyzer {
 
     private static final CharArraySet STOP_WORDS = new CharArraySet(NEWS_STOP_WORDS, true);
-    private static final int MIN_TOKEN_LENGTH = 2; // to improve noise reduction
-    private static final int MAX_TOKEN_LENGTH = 40; // to filter out spam and errors
+    private static final int MIN_TOKEN_LENGTH = 2; 
+    private static final int MAX_TOKEN_LENGTH = 15;
 
     @Override
     protected TokenStreamComponents createComponents(String field) {

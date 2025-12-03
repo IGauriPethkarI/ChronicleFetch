@@ -127,6 +127,10 @@ public class Constants {
             "some", "such", "than", "the", "their", "them", "then", "there", "these",
             "they", "this", "those", "through", "to", "too", "under", "until", "up",
             "very", "was", "we", "were", "what", "when", "where", "which", "while",
-            "who", "whom", "with", "you", "your", "yours", "yourself", "yourselves","d", "b","c", "i"
+            "who", "whom", "with", "you", "your", "yours", "yourself", "yourselves","d", "b","c", "i",
+            "page", "text", "date", "sourc", "docno", "headlin", "part", "last",
+            "state", "bylin", "includ", "compani", "column", "end", "per", "like",
+            "issu", "follow", "profil", "pub", "section", "continu", "busi", "interest",
+            "develop", "meet", "expect", "provid"
     );
 }

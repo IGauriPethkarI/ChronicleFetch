@@ -195,3 +195,17 @@ Research Paper Responsibilities (Deadline: 03/12):
 Other Tasks:
 - Martha: Update project-journal.txt with Meeting 5 entry.
 - Keshwith: Prepare updated README with full run instructions.
+
+-----------------------------------------------------------------------------------------------------------
+Meeting 6
+Date: 3rd December 2025
+Meeting Type: In-person (1:00pm, South Leinster Street Meeting Room)
+Participants: All members present
+
+------------------------------------------------------------
+Summary of Meeting
+------------------------------------------------------------
+- Final meeting, all code finished.
+- Each member provided final update on their implementation work.
+- Last implementation branch merged to Main. 
+- Final draft of report proof-read with whole group and changes suggested to be made before Friday.

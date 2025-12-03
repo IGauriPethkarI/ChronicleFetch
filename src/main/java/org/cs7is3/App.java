@@ -18,7 +18,6 @@ public class App {
             }
 
             String command = args[0].toLowerCase();
-
             switch (command) {
                 case "index":
                     handleIndexCommand(args);
@@ -34,7 +33,6 @@ public class App {
                     System.err.println("Unknown command: " + command);
                     System.exit(1);
             }
-
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
@@ -45,7 +43,6 @@ public class App {
     private static void handleIndexCommand(String[] args) throws Exception {
         String dataPath = DEFAULT_DATA_PATH;
         String indexPath = DEFAULT_INDEX_PATH;
-
         for (int i = 1; i < args.length; i++) {
             if (args[i].equals("--docs") && i + 1 < args.length) {
                 dataPath = args[i + 1];
@@ -55,14 +52,8 @@ public class App {
                 i++;
             }
         }
-
-        long startTime = System.currentTimeMillis();
-
         Indexer indexer = new Indexer();
         indexer.buildIndex(Paths.get(dataPath), Paths.get(indexPath));
-
-        long endTime = System.currentTimeMillis();
-        long duration = (endTime - startTime) / 1000;
     }
 
     private static void handleSearchCommand(String[] args) throws Exception {

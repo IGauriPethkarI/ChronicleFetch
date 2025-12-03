@@ -7,10 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
@@ -21,6 +24,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
@@ -44,11 +48,17 @@ public class Searcher {
     private static final boolean USE_DESCRIPTION = true;
     private static final boolean USE_NARRATIVE = true;
 
-    // PRF flags
     private static final boolean USE_PRF = true;
-    private static final int PRF_FEEDBACK_DOCS = 40;   // 30-50
-    private static final int PRF_EXPANSION_TERMS = 25; // 20-30
-    private static final float PRF_BOOST = 0.4f;       // 0.3-0.5
+    private static final int PRF_FEEDBACK_DOCS = 40;   
+    private static final int PRF_EXPANSION_TERMS = 25; 
+    private static final float PRF_BOOST = 0.4f;       
+
+    private static final String[] SEARCH_FIELDS = {"text", "headline", "summary"};
+    private static final Map<String, Float> FIELD_BOOSTS = Map.of(
+        "text", 1.0f,
+        "headline", 1.8f,
+        "summary", 1.8f
+    );
 
     private static class Topic {
         String id;
@@ -58,7 +68,7 @@ public class Searcher {
     }
 
     public void searchTopics(Path indexPath, Path topicsPath,
-                             Path outputRun, int numDocs) throws IOException {
+                             Path outputRun, int numDocs) throws IOException, ParseException {
 
         List<Topic> topics = parseTopics(topicsPath);
 
@@ -72,41 +82,59 @@ public class Searcher {
             searcher.setSimilarity(bm25);
 
             Analyzer analyzer = new CustomAnalyzer();
-            QueryParser parser = new QueryParser("text", analyzer);
+            MultiFieldQueryParser parser = new MultiFieldQueryParser(
+                SEARCH_FIELDS, 
+                analyzer, 
+                FIELD_BOOSTS
+            );
             parser.setDefaultOperator(MultiFieldQueryParser.Operator.OR);
 
             String runTag = "cs7is3";
 
             for (Topic topic : topics) {
-                String queryText = buildQueryText(topic);
-
-                Query baseQuery;
-                try {
-                    baseQuery = parser.parse(queryText);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse query for topic " + topic.id, e);
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    
+                if (USE_TITLE && !topic.title.isEmpty()) {
+                    Query qTitle = parser.parse(QueryParserBase.escape(topic.title));
+                    builder.add(new BoostQuery(qTitle, 2f), BooleanClause.Occur.SHOULD);
+                }
+    
+                if (USE_DESCRIPTION && !topic.description.isEmpty()) {
+                    Query qDesc = parser.parse(QueryParserBase.escape(topic.description));
+                    builder.add(new BoostQuery(qDesc, 1f), BooleanClause.Occur.SHOULD);
+                }
+    
+                if (USE_NARRATIVE && !topic.narrative.isEmpty()) {
+                    String posNarr = extractPositiveNarrative(topic.narrative);
+                    if (!posNarr.isEmpty()) {
+                        Query qNarr =  parser.parse(QueryParserBase.escape(posNarr));
+                        builder.add(new BoostQuery(qNarr, 0.5f), BooleanClause.Occur.MUST);
+                    }
                 }
 
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                bqBuilder.add(baseQuery, BooleanClause.Occur.SHOULD);         
+                QueryParser sourceParser = new QueryParser("source", analyzer);
+                Query sourceFt = sourceParser.parse("ft");
+                builder.add(new BoostQuery(sourceFt, 1.2f), BooleanClause.Occur.SHOULD);
 
-                Query boostedQuery = bqBuilder.build();
-
-                TopDocs feedback = searcher.search(boostedQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
-
-                Query finalQuery = boostedQuery;
-                if (USE_PRF) {
-                    finalQuery = expandWithPRF(boostedQuery, feedback, reader,
+                Query sourceLatimes = sourceParser.parse("latimes");
+                builder.add(new BoostQuery(sourceLatimes, 1.1f), BooleanClause.Occur.SHOULD);
+                    
+                Query baseQuery = builder.build();
+                TopDocs feedback = searcher.search(baseQuery, Math.max(numDocs, PRF_FEEDBACK_DOCS));
+    
+                Query finalQuery = baseQuery;
+                if (USE_PRF && feedback.scoreDocs.length >= 3) {
+                    finalQuery = expandWithPRF(baseQuery, feedback, reader,
                                                PRF_EXPANSION_TERMS, PRF_BOOST);
                 }
+    
                 TopDocs topDocs = searcher.search(finalQuery, numDocs);
-
                 ScoreDoc[] hits = topDocs.scoreDocs;
-
+    
                 for (int i = 0; i < hits.length; i++) {
                     Document doc = searcher.storedFields().document(hits[i].doc);
-                    String docno = doc.get("docno");
-
+                    String docno = doc.get("docno").trim();
+    
                     String line = String.format(
                             Locale.ROOT,
                             "%s Q0 %s %d %f %s",
@@ -187,66 +215,64 @@ public class Searcher {
         return topics;
     }
 
-    private String buildQueryText(Topic topic) {
-        StringBuilder sb = new StringBuilder();
-
-        if (USE_TITLE && !topic.title.isEmpty()) {
-            String escapedTitle = QueryParserBase.escape(topic.title);
-            sb.append("text:(").append(escapedTitle).append(")^2 ");
-            sb.append("persons:(").append(escapedTitle).append(")^0.8 ");
-            sb.append("section:(").append(escapedTitle).append(")^1.0 ");
-        }
-
-        if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^1");
-        }
-
-        if (USE_NARRATIVE) {
-            String posNarr = extractPositiveNarrative(topic.narrative);
-            if (!posNarr.isEmpty()) {
-                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^0.3 ");
-            }
-        }
-        sb.append("source:ft^1.2 source:latimes^1.1 ");
-        return sb.toString().trim();
-    }
-
     private String extractPositiveNarrative(String narrative) {
         if (narrative == null) return "";
         narrative = narrative.trim();
         if (narrative.isEmpty()) return "";
         narrative = narrative.replaceAll("\\s+", " ");
-    
+
+        Set<String> fillerWords = new HashSet<>(Arrays.asList(
+            "document", "documents", "information", "data",
+            "report", "discuss", "relevant", "irrelevant", "not relevant", "focus",
+            "mention", "pertain", "describe", "contain", "provide", "cite", "include",
+            "indicate", "identify", "name", "concrete"
+
+        ));
+
         String[] sentences = narrative.split("(?<=[.!?])\\s+");
         StringBuilder sb = new StringBuilder();
-    
+
         for (String sentence : sentences) {
             String s = sentence.trim();
             if (s.isEmpty()) continue;
-    
+
             String[] clauseLevel1 = s.split("[;:]");
             for (String clause : clauseLevel1) {
                 String c1 = clause.trim();
                 if (c1.isEmpty()) continue;
-    
+
                 String[] subClauses = c1.split(",");
                 for (String sub : subClauses) {
                     String c = sub.trim();
                     if (c.isEmpty()) continue;
-    
+
                     String lower = c.toLowerCase(Locale.ROOT);
+
                     if (lower.contains("not relevant") || lower.contains("irrelevant")) {
                         continue;
                     }
-    
-                    if (sb.length() > 0) sb.append(' ');
-                    sb.append(c);
+
+                    String[] tokens = c.split("\\s+");
+                    StringBuilder filtered = new StringBuilder();
+                    for (String token : tokens) {
+                        String t = token.toLowerCase(Locale.ROOT);
+                        if (!fillerWords.contains(t)) {
+                            if (filtered.length() > 0) filtered.append(' ');
+                            filtered.append(token);
+                        }
+                    }
+
+                    String cleaned = filtered.toString().trim();
+                    if (!cleaned.isEmpty()) {
+                        if (sb.length() > 0) sb.append(' ');
+                        sb.append(cleaned);
+                    }
                 }
             }
         }
         return sb.toString();
     }
-    
+
     private Query expandWithPRF(Query baseQuery, TopDocs feedbackDocs,
         DirectoryReader reader, int topTerms, float boost) throws IOException {
 
@@ -254,7 +280,9 @@ public class Searcher {
         TermVectors tvReader = reader.termVectors();
 
         java.util.Set<String> originalTerms = new java.util.HashSet<>();
-        collectTerms(baseQuery, "text", originalTerms);
+        for (String field : SEARCH_FIELDS) {
+            collectTerms(baseQuery, field, originalTerms);
+        }
 
         int maxDoc = reader.maxDoc();
 
@@ -264,24 +292,29 @@ public class Searcher {
             Fields vectors = tvReader.get(docId);
             if (vectors == null) continue;
 
-            Terms terms = vectors.terms("text");
-            if (terms == null) continue;
+            for (String field : SEARCH_FIELDS) {
+                Terms terms = vectors.terms(field);
+                if (terms == null) continue;
 
-            TermsEnum te = terms.iterator();
-            BytesRef ref;
-            while ((ref = te.next()) != null) {
-                String term = ref.utf8ToString();
-                if (term.length() < 4) continue;
-                if (originalTerms.contains(term)) continue;
+                TermsEnum te = terms.iterator();
+                BytesRef ref;
+                while ((ref = te.next()) != null) {
+                    String term = ref.utf8ToString();
+                    if (term.length() < 4) continue;
+                    if (originalTerms.contains(term)) continue;
 
-                int df = reader.docFreq(new Term("text", term));
-                if (df < 3) continue;
-                if (df > 0.2 * maxDoc) continue;
+                    int df = reader.docFreq(new Term(field, term));
+                    if (df < 3) continue;
+                    if (df > 0.2 * maxDoc) continue;
 
-                float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
+                    float idf = (float) Math.log((maxDoc - df + 0.5f) / (df + 0.5f));
+                    
+                    float fieldWeight = FIELD_BOOSTS.getOrDefault(field, 1.0f);
+                    float weightedScore = idf * fieldWeight;
 
-                float old = scores.getOrDefault(term, 0f);
-                scores.put(term, old + idf);
+                    float old = scores.getOrDefault(term, 0f);
+                    scores.put(term, old + weightedScore);
+                }
             }
         }
 
@@ -294,6 +327,7 @@ public class Searcher {
         int added = 0;
         for (Map.Entry<String, Float> e : sorted) {
             if (added >= topTerms) break;
+            
             TermQuery tq = new TermQuery(new Term("text", e.getKey()));
             expanded.add(new BoostQuery(tq, boost), BooleanClause.Occur.SHOULD);
             added++;
@@ -314,5 +348,5 @@ public class Searcher {
         } else if (q instanceof BoostQuery) {
             collectTerms(((BoostQuery) q).getQuery(), field, out);
         }
-    }    
+    }
 }
