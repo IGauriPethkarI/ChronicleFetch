@@ -191,19 +191,23 @@ public class Searcher {
         StringBuilder sb = new StringBuilder();
 
         if (USE_TITLE && !topic.title.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.title)).append(")^2 ");
+            String escapedTitle = QueryParserBase.escape(topic.title);
+            sb.append("text:(").append(escapedTitle).append(")^2 ");
+            sb.append("persons:(").append(escapedTitle).append(")^0.8 ");
+            sb.append("section:(").append(escapedTitle).append(")^1.0 ");
         }
-    
+
         if (USE_DESCRIPTION && !topic.description.isEmpty()) {
-            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^1 ");
+            sb.append("text:(").append(QueryParserBase.escape(topic.description)).append(")^1");
         }
-    
+
         if (USE_NARRATIVE) {
             String posNarr = extractPositiveNarrative(topic.narrative);
             if (!posNarr.isEmpty()) {
-                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^0.5 ");
+                sb.append("text:(").append(QueryParserBase.escape(posNarr)).append(")^0.3 ");
             }
         }
+        sb.append("source:ft^1.2 source:latimes^1.1 ");
         return sb.toString().trim();
     }
 
