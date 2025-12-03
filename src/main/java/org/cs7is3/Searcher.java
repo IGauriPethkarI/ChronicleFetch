@@ -110,7 +110,7 @@ public class Searcher {
                     String posNarr = extractPositiveNarrative(topic.narrative);
                     if (!posNarr.isEmpty()) {
                         Query qNarr =  parser.parse(QueryParserBase.escape(posNarr));
-                        builder.add(new BoostQuery(qNarr, 0.5f), BooleanClause.Occur.SHOULD);
+                        builder.add(new BoostQuery(qNarr, 0.5f), BooleanClause.Occur.MUST);
                     }
                 }
 
