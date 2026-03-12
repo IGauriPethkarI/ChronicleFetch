@@ -5,7 +5,7 @@ import java.nio.file.Paths;
 
 public class App {
 
-    public static final String DEFAULT_DATA_PATH = "Assignment Two";
+    public static final String DEFAULT_DATA_PATH = "dataset";
     public static final String DEFAULT_INDEX_PATH = "index";
     public static final String DEFAULT_TOPICS_PATH = "topics";
     public static final String DEFAULT_OUTPUT_PATH = "runs/results.run";

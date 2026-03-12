@@ -47,7 +47,7 @@ jobs:
           fi
           echo "✅ Found topics file"
           
-          if [ ! -d "Assignment Two" ]; then
+          if [ ! -d "dataset" ]; then
             echo "❌ No dataset found"
             exit 1
           fi
@@ -64,7 +64,7 @@ jobs:
           # Run search engine
           echo "🚀 Running search engine..."
           echo "📚 Indexing documents..."
-          java -jar target/cs7is3-search-1.0.0.jar index --docs "Assignment Two" --index index
+          java -jar target/cs7is3-search-1.0.0.jar index --docs "dataset" --index index
           
           echo "🔍 Searching topics..."
           java -jar target/cs7is3-search-1.0.0.jar search --index index --topics topics --output runs/student.run --numDocs 1000
@@ -74,7 +74,7 @@ jobs:
       - name: Evaluate Results
         run: |
           echo "📈 Evaluating results..."
-          python3 tools/evaluate.py qrels.assignment2.part1 runs/student.run --out_csv out/standings.csv --out_md out/standings.md
+          python3 tools/evaluate.py qrels runs/student.run --out_csv out/standings.csv --out_md out/standings.md
           echo "✅ Evaluation completed"
 
       - name: Display Results
